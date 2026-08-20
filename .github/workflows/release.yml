@@ -78,7 +78,8 @@ jobs:
                 dotnet build -c Release --no-restore --nologo -o ./bin/Release \
                 -p:Version=${{ env.VERSION }} \
                 -p:AssemblyVersion=${{ env.VERSION }} \
-                -p:FileVersion=${{ env.VERSION }}
+                -p:FileVersion=${{ env.VERSION }} \
+                -p:MeddleCommitOverride=${{ github.sha }}
 
           - name: Generate Checksums & Export ApiLevel
             working-directory: Meddle/Meddle.Plugin/bin/Release/Meddle.Plugin

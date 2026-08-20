@@ -1,4 +1,4 @@
-﻿using FFXIVClientStructs.FFXIV.Client.Graphics.Render;
+using FFXIVClientStructs.FFXIV.Client.Graphics.Render;
 using FFXIVClientStructs.Interop;
 using Meddle.Plugin.Models.Structs;
 using Meddle.Plugin.Utils;
@@ -21,6 +21,7 @@ public class ParsedPartialSkeleton
 
         BoneCount = ex->BoneCount;
         ConnectedBoneIndex = partialSkeleton->ConnectedBoneIndex;
+        PartialSkeletonFlagsRaw = ex->PartialSkeletonFlags;
 
         var poses = new List<ParsedHkaPose>();
         for (var i = 0; i < partialSkeleton->HavokPoses.Length; ++i)
@@ -46,4 +47,5 @@ public class ParsedPartialSkeleton
     public IReadOnlyList<ParsedHkaPose> Poses { get; }
     public int ConnectedBoneIndex { get; }
     public uint BoneCount { get; }
+    public uint PartialSkeletonFlagsRaw { get; }
 }

@@ -54,10 +54,14 @@ jobs:
                 run: dotnet restore
 
             -   name: Build plugin in debug mode
-                run: dotnet build -c Debug --no-restore --nologo -o ./bin/${{ matrix.dalamud-version }}/Debug
+                run: dotnet build -c Debug --no-restore --nologo -o ./bin/${{ matrix.dalamud-version }}/Debug -p:MeddleCommitOverride=${{ github.sha }}
 
             -   name: Build plugin in release mode
-                run: dotnet build -c Release --no-restore --nologo -o ./bin/${{ matrix.dalamud-version }}/Release
+                run: dotnet build -c Release --no-restore --nologo -o ./bin/${{ matrix.dalamud-version }}/Release -p:MeddleCommitOverride=${{ github.sha }}
+
+            -   name: Run managed UE tests
+                working-directory: ${{ github.workspace }}
+                run: dotnet test Meddle/Meddle.Utils.Tests/Meddle.Utils.Tests.csproj -c Debug --nologo
 
             -   name: Upload Artifact
                 uses: actions/upload-artifact@v6

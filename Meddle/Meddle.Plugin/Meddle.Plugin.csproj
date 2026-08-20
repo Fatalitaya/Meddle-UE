@@ -6,6 +6,8 @@
         <RootNamespace>Meddle.Plugin</RootNamespace>
         <LangVersion>14</LangVersion>
         <TargetFramework>net10.0-windows</TargetFramework>
+        <MeddleCommit>$(MeddleCommitOverride)</MeddleCommit>
+        <MeddleDirty>$(MeddleDirtyOverride)</MeddleDirty>
     </PropertyGroup>
 
     <ItemGroup>
@@ -41,4 +43,85 @@
         <ProjectReference Include="$(CustomClientStructsPath)\FFXIVClientStructs\FFXIVClientStructs.csproj" Private="True" />
         <ProjectReference Include="$(CustomClientStructsPath)\InteropGenerator.Runtime\InteropGenerator.Runtime.csproj" Private="True" />
     </ItemGroup>
+
+    <UsingTask TaskName="CaptureGitProvenance" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+        <ParameterGroup>
+            <WorkingDirectory ParameterType="System.String" Required="true" />
+            <GitCommand ParameterType="System.String" Required="true" />
+            <StdOut ParameterType="System.String" Output="true" />
+            <ExitCode ParameterType="System.Int32" Output="true" />
+        </ParameterGroup>
+        <Task>
+            <Using Namespace="System" />
+            <Using Namespace="System.Diagnostics" />
+            <Code Type="Fragment" Language="cs">
+                <![CDATA[
+                StdOut = string.Empty;
+                ExitCode = -1;
+                try
+                {
+                    var startInfo = new ProcessStartInfo("git", GitCommand)
+                    {
+                        WorkingDirectory = WorkingDirectory,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    };
+
+                    using var process = Process.Start(startInfo);
+                    if (process != null)
+                    {
+                        var stdoutTask = process.StandardOutput.ReadToEndAsync();
+                        var stderrTask = process.StandardError.ReadToEndAsync();
+                        process.WaitForExit();
+                        System.Threading.Tasks.Task.WaitAll(stdoutTask, stderrTask);
+
+                        StdOut = stdoutTask.Result.Trim();
+                        ExitCode = process.ExitCode;
+                    }
+                }
+                catch
+                {
+                    StdOut = string.Empty;
+                    ExitCode = -1;
+                }
+                ]]>
+            </Code>
+        </Task>
+    </UsingTask>
+
+    <Target Name="CaptureBuildProvenance" BeforeTargets="GenerateAssemblyInfo" Condition="'$(DesignTimeBuild)' != 'true'">
+        <CaptureGitProvenance
+            WorkingDirectory="$(MSBuildProjectDirectory)/../.."
+            GitCommand="rev-parse HEAD"
+            Condition="'$(MeddleCommit)' == ''">
+            <Output TaskParameter="StdOut" PropertyName="MeddleGitCommitRaw" />
+            <Output TaskParameter="ExitCode" PropertyName="MeddleGitCommitExitCode" />
+        </CaptureGitProvenance>
+        <CaptureGitProvenance
+            WorkingDirectory="$(MSBuildProjectDirectory)/../.."
+            GitCommand="status --porcelain --untracked-files=normal"
+            Condition="'$(MeddleDirty)' == ''">
+            <Output TaskParameter="StdOut" PropertyName="MeddleGitStatusRaw" />
+            <Output TaskParameter="ExitCode" PropertyName="MeddleGitStatusExitCode" />
+        </CaptureGitProvenance>
+        <PropertyGroup>
+            <MeddleCommit Condition="'$(MeddleCommit)' == '' and '$(MeddleGitCommitExitCode)' == '0' and $([System.Text.RegularExpressions.Regex]::IsMatch('$(MeddleGitCommitRaw)', '^[0-9a-fA-F]{40,64}$'))">$(MeddleGitCommitRaw)</MeddleCommit>
+            <MeddleDirty Condition="'$(MeddleDirty)' == '' and '$(MeddleGitStatusExitCode)' == '0' and '$(MeddleGitStatusRaw)' != ''">true</MeddleDirty>
+            <MeddleDirty Condition="'$(MeddleDirty)' == '' and '$(MeddleGitStatusExitCode)' == '0' and '$(MeddleGitStatusRaw)' == ''">false</MeddleDirty>
+            <BuildProvenanceSource><![CDATA[
+[assembly: System.Reflection.AssemblyMetadata("MeddleBuildVersion", "$(Version)")]
+[assembly: System.Reflection.AssemblyMetadata("MeddleBuildCommit", "$(MeddleCommit)")]
+[assembly: System.Reflection.AssemblyMetadata("MeddleBuildDirty", "$(MeddleDirty)")]
+]]></BuildProvenanceSource>
+        </PropertyGroup>
+        <WriteLinesToFile
+            File="$(IntermediateOutputPath)BuildProvenance.g.cs"
+            Lines="$(BuildProvenanceSource)"
+            Overwrite="true" />
+        <ItemGroup>
+            <Compile Include="$(IntermediateOutputPath)BuildProvenance.g.cs" />
+        </ItemGroup>
+    </Target>
 </Project>

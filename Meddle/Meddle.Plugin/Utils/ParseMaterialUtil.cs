@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using System.Runtime.InteropServices;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Graphics.Kernel;
@@ -138,7 +138,9 @@ public static class ParseMaterialUtil
                 deform, 
                 StructExtensions.ParseModelShapeAttributes(model), 
                 materials.ToArray(), 
-                stain0, stain1)
+                stain0, stain1,
+                modelType,
+                model->SlotIndex)
             {
                 ModelAddress = (nint)modelPtr.Value
             };
@@ -147,7 +149,7 @@ public static class ParseMaterialUtil
         
         var skeleton = StructExtensions.GetParsedSkeleton(characterBase);
         var parsedHumanInfo = ParseHuman(characterBase);
-        return new ParsedCharacterInfo(models.ToArray(), skeleton, StructExtensions.GetParsedAttach(characterBase), parsedHumanInfo);
+        return new ParsedCharacterInfo(models.ToArray(), skeleton, StructExtensions.GetParsedAttach(characterBase), parsedHumanInfo, modelType);
     }
     
     public static unsafe ParsedHumanInfo ParseHuman(Pointer<CharacterBase> characterBasePtr)

@@ -1,10 +1,11 @@
-﻿using System.Numerics;
+using System.Numerics;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Dalamud.Bindings.ImGui;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
+using FFXIVClientStructs.FFXIV.Client.Graphics.Scene;
 using FFXIVClientStructs.FFXIV.Client.LayoutEngine;
 using Lumina.Excel.Sheets;
 using Meddle.Plugin.Models.Composer;
@@ -508,7 +509,7 @@ public class ParsedMaterialInfo(string path, string pathFromModel, string shpk, 
     }
 }
 
-public class ParsedModelInfo(string path, string pathFromCharacter, bool enabled, DeformerCachedStruct? deformer, Model.ShapeAttributeGroup? shapeAttributeGroup, ParsedMaterialInfo?[] materials, Stain? stain0, Stain? stain1) 
+public class ParsedModelInfo(string path, string pathFromCharacter, bool enabled, DeformerCachedStruct? deformer, Model.ShapeAttributeGroup? shapeAttributeGroup, ParsedMaterialInfo?[] materials, Stain? stain0, Stain? stain1, CharacterBase.ModelType? modelType = null, uint slotIndex = 0)
 {
     public HandleString Path { get; } = new() { FullPath = path, GamePath = pathFromCharacter };
     public bool Enabled { get; } = enabled;
@@ -517,6 +518,8 @@ public class ParsedModelInfo(string path, string pathFromCharacter, bool enabled
     public DeformerCachedStruct? Deformer { get; } = deformer;
     public Model.ShapeAttributeGroup? ShapeAttributeGroup { get; } = shapeAttributeGroup;
     public ParsedMaterialInfo?[] Materials { get; } = materials;
+    public CharacterBase.ModelType? ModelType { get; } = modelType;
+    public uint SlotIndex { get; } = slotIndex;
     public nint ModelAddress { get; set; }
 }
 
@@ -540,6 +543,7 @@ public record ParsedCharacterInfo
     public readonly ParsedSkeleton Skeleton;
     public readonly ParsedAttach Attach;
     public readonly ParsedHumanInfo HumanInfo;
+    public CharacterBase.ModelType ModelType { get; }
     public IReadOnlyList<ParsedCharacterInfo> Attaches = [];
     public readonly DateTime ParsedAt = DateTime.UtcNow;
     public CustomizeData? CustomizeData => HumanInfo.CustomizeData;
@@ -551,12 +555,14 @@ public record ParsedCharacterInfo
         ParsedModelInfo[] models,
         ParsedSkeleton skeleton,
         ParsedAttach attach,
-        ParsedHumanInfo humanInfo)
+        ParsedHumanInfo humanInfo,
+        CharacterBase.ModelType modelType)
     {
         Models = models;
         Skeleton = skeleton;
         Attach = attach;
         this.HumanInfo = humanInfo;
+        ModelType = modelType;
     }
 }
 

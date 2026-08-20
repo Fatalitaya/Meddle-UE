@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Text.Json;
 using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Interface;
@@ -15,6 +15,7 @@ using Meddle.Plugin.Models;
 using Meddle.Plugin.Models.Composer;
 using Meddle.Plugin.Models.Layout;
 using Meddle.Plugin.Models.Structs;
+using Meddle.Plugin.Export.Ue;
 using Meddle.Plugin.Services;
 using Meddle.Plugin.UI.Layout;
 using Meddle.Plugin.UI.Windows;
@@ -42,6 +43,7 @@ public unsafe class LiveCharacterTab : ITab
     private readonly Configuration config;
     private readonly MdlMaterialWindowManager mdlMaterialWindowManager;
     private readonly ComposerFactory composerFactory;
+    private readonly UeCharacterExportService ueCharacterExportService;
     public MenuType MenuType => MenuType.Default;
 
     private readonly FileDialogManager fileDialog = new()
@@ -77,7 +79,8 @@ public unsafe class LiveCharacterTab : ITab
         SigUtil sigUtil,
         Configuration config,
         MdlMaterialWindowManager mdlMaterialWindowManager,
-        ComposerFactory composerFactory)
+        ComposerFactory composerFactory,
+        UeCharacterExportService ueCharacterExportService)
     {
         this.log = log;
         this.textureProvider = textureProvider;
@@ -91,6 +94,7 @@ public unsafe class LiveCharacterTab : ITab
         this.config = config;
         this.mdlMaterialWindowManager = mdlMaterialWindowManager;
         this.composerFactory = composerFactory;
+        this.ueCharacterExportService = ueCharacterExportService;
     }
 
     private bool IsDisposed { get; set; }
@@ -180,6 +184,18 @@ public unsafe class LiveCharacterTab : ITab
 
                 return info;
             }, character->NameString.GetCharacterName(config, character->ObjectKind));
+
+            ImGui.SameLine();
+            ExportUeBundleButton("Export UE Bundle", () =>
+            {
+                var info = resolverService.ParseCharacter(character);
+                if (info == null)
+                {
+                    throw new Exception("Failed to get character info from draw object");
+                }
+
+                return info;
+            }, character->NameString.GetCharacterName(config, character->ObjectKind), character->ObjectKind.ToString());
             
             ImGui.SameLine();
             UiUtil.HintCircle("Attaches are weapons, mounts, companions, parasols, etc. If you wish to export them separately, use the export buttons in their respective sections.");
@@ -241,6 +257,38 @@ public unsafe class LiveCharacterTab : ITab
             configClone.SetDefaultCloneOptions();
             drawExportSettingsCallback = () => DrawExportSettings(parsedCharacterInfo, name, configClone);
         }
+    }
+
+    private void ExportUeBundleButton(string text, Func<ParsedCharacterInfo> resolve, string name, string objectKind)
+    {
+        using var disabled = ImRaii.Disabled(!exportTask.IsCompleted);
+        if (!ImGui.Button(text))
+        {
+            return;
+        }
+
+        var parsedCharacterInfo = resolve();
+        var safeName = name.SanitizeFileName();
+        var defaultName = $"Character-{safeName}-{DateTime.Now:yyyy-MM-dd-HH-mm-ss}";
+        cancelToken = new CancellationTokenSource();
+        fileDialog.SaveFolderDialog("Save UE Bundle", defaultName, (result, path) =>
+        {
+            if (!result)
+            {
+                return;
+            }
+
+            exportTask = Task.Run(() =>
+            {
+                var exportResult = ueCharacterExportService.Export(
+                    parsedCharacterInfo,
+                    name,
+                    objectKind,
+                    path,
+                    cancelToken.Token);
+                ExportUtil.OpenExportFolderInExplorer(exportResult.OutputPath, config, cancelToken.Token);
+            });
+        }, config.ExportDirectory);
     }
 
     private void ExportMenuItem(string text, Func<ParsedCharacterInfo> resolve, string name)
