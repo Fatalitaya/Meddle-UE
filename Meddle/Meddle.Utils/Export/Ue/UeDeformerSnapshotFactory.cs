@@ -27,9 +27,9 @@ public static class UeDeformerSnapshotFactory
 
         return observation.State switch
         {
-            DeformerObservationState.Present => Observed(observation),
-            DeformerObservationState.Absent => ObservedNone(),
-            DeformerObservationState.Incomplete => ObservedIncomplete(observation),
+            DeformerObservationState.Observed => Observed(observation),
+            DeformerObservationState.ObservedNone => ObservedNone(),
+            DeformerObservationState.ObservedIncomplete => ObservedIncomplete(observation),
             _ => NotObserved()
         };
     }

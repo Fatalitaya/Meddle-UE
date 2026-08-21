@@ -10,7 +10,7 @@ public sealed class UeDeformerObservationTests
     {
         var observation = new DeformerObservation
         {
-            State = DeformerObservationState.Present,
+            State = DeformerObservationState.Observed,
             RaceSexId = 1401,
             DeformerId = 13,
             PbdPath = "chara/xls/boneDeformer/human.pbd"
@@ -32,7 +32,7 @@ public sealed class UeDeformerObservationTests
     {
         var observation = new DeformerObservation
         {
-            State = DeformerObservationState.Absent
+            State = DeformerObservationState.ObservedNone
         };
 
         var snapshot = UeDeformerSnapshotFactory.FromObservation(observation, isHuman: true);
@@ -48,7 +48,7 @@ public sealed class UeDeformerObservationTests
     {
         var observation = new DeformerObservation
         {
-            State = DeformerObservationState.Incomplete,
+            State = DeformerObservationState.ObservedIncomplete,
             RaceSexId = 801,
             DeformerId = 7
         };
@@ -84,7 +84,7 @@ public sealed class UeDeformerObservationTests
         var cache = new DeformerObservationCache();
         var observation = new DeformerObservation
         {
-            State = DeformerObservationState.Present,
+            State = DeformerObservationState.Observed,
             RaceSexId = 801,
             DeformerId = 7,
             PbdPath = "chara/xls/boneDeformer/human.pbd"
@@ -120,7 +120,7 @@ public sealed class UeDeformerObservationTests
             "chara/human/c0701/obj/body/b0001.mdl",
             new DeformerObservation
             {
-                State = DeformerObservationState.Present,
+                State = DeformerObservationState.Observed,
                 RaceSexId = 801,
                 DeformerId = 7
             });
@@ -148,7 +148,7 @@ public sealed class UeDeformerObservationTests
             "chara/human/c0701/obj/body/b0001.mdl",
             new DeformerObservation
             {
-                State = DeformerObservationState.Present
+                State = DeformerObservationState.Observed
             });
 
         var actual = cache.TryGet(
@@ -189,7 +189,7 @@ public sealed class UeDeformerObservationTests
             "chara/human/c0701/obj/body/b0001.mdl",
             new DeformerObservation
             {
-                State = DeformerObservationState.Absent
+                State = DeformerObservationState.ObservedNone
             });
 
         var actual = cache.TryGet(
@@ -200,7 +200,7 @@ public sealed class UeDeformerObservationTests
             "chara/human/c0701/obj/body/b0001.mdl");
 
         Assert.IsNotNull(actual);
-        Assert.AreEqual(DeformerObservationState.Absent, actual!.State);
+        Assert.AreEqual(DeformerObservationState.ObservedNone, actual!.State);
     }
 
     [TestMethod]
@@ -215,7 +215,7 @@ public sealed class UeDeformerObservationTests
             null,
             new DeformerObservation
             {
-                State = DeformerObservationState.Present
+                State = DeformerObservationState.Observed
             });
 
         var actual = cache.TryGet(
@@ -241,7 +241,7 @@ public sealed class UeDeformerObservationTests
             "chara/human/c0701/obj/body/b0001.mdl",
             new DeformerObservation
             {
-                State = DeformerObservationState.Absent
+                State = DeformerObservationState.ObservedNone
             });
 
         cache.PruneToAliveHumans([0x200]);
@@ -261,7 +261,7 @@ public sealed class UeDeformerObservationTests
         var cache = new DeformerObservationCache();
         var observation = new DeformerObservation
         {
-            State = DeformerObservationState.Absent
+            State = DeformerObservationState.ObservedNone
         };
         cache.Store(
             (nint)0x100,

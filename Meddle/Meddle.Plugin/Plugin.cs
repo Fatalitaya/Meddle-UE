@@ -1,5 +1,6 @@
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
+using Meddle.Plugin.Audit;
 using Meddle.Plugin.Services;
 using Meddle.Plugin.Utils;
 using Meddle.Utils.Files.SqPack;
@@ -69,6 +70,7 @@ public sealed class Plugin : IDalamudPlugin
             var pack = app.Services.GetRequiredService<SqPack>();
             pack.RsfData = config.RsfConfig.GetRsfData();
             app.Services.GetRequiredService<RsfWatcher>();
+            app.Services.GetRequiredService<RuntimeAuditCommands>();
 
             app.Start();
         }

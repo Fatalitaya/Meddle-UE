@@ -99,7 +99,7 @@ public class CharacterComposer
         (GenderRace from, GenderRace to, RaceDeformer deformer)? deform = null;
         if (exportConfig.UseDeformer)
         {
-            if (m.Deformer is { State: DeformerObservationState.Present } deformerObservation)
+            if (m.Deformer is { State: DeformerObservationState.Observed } deformerObservation)
             {
                 if (deformerObservation.DeformerId is not { } deformerId ||
                     deformerObservation.RaceSexId is not { } raceSexId ||

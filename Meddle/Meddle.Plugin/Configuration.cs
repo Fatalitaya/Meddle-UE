@@ -53,6 +53,20 @@ public partial class Configuration : IPluginConfiguration
     public ExportConfiguration ExportConfig { get; set; } = new();
     public UpdateWindow.UpdateConfig UpdateConfig { get; set; } = new();
     public RsfConfiguration RsfConfig { get; set; } = new();
+    public AuditConfiguration AuditConfig { get; set; } = new();
+
+    /// <summary>
+    /// Runtime information auditing. Optional and disabled by default. This is
+    /// an investigation instrument only; it never participates in export.
+    /// </summary>
+    public class AuditConfiguration
+    {
+        public bool Enabled { get; set; }
+
+        public string OutputDirectory { get; set; } = Path.Combine(DefaultExportDirectory, "AuditDump");
+
+        public float ContinuousCollectionIntervalSeconds { get; set; } = 1f;
+    }
 
     public class RsfConfiguration
     {
@@ -180,4 +194,3 @@ public partial class Configuration : IPluginConfiguration
         OnConfigurationSaved?.Invoke();
     }
 }
-

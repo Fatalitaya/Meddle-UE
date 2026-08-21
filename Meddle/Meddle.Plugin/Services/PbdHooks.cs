@@ -176,7 +176,7 @@ public class PbdHooks : IDisposable, IService
         {
             observation = new DeformerObservation
             {
-                State = DeformerObservationState.Incomplete,
+                State = DeformerObservationState.ObservedIncomplete,
                 RaceSexId = deformer->RaceSexId,
                 DeformerId = deformer->DeformerId
             };
