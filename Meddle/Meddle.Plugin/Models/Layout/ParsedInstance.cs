@@ -15,6 +15,7 @@ using Meddle.Plugin.Services;
 using Meddle.Plugin.Utils;
 using Meddle.Utils.Constants;
 using Meddle.Utils.Export;
+using Meddle.Utils.Export.Ue;
 using Meddle.Utils.Files;
 using Meddle.Utils.Files.Structs.Material;
 using CustomizeData = Meddle.Utils.Export.CustomizeData;
@@ -509,13 +510,13 @@ public class ParsedMaterialInfo(string path, string pathFromModel, string shpk, 
     }
 }
 
-public class ParsedModelInfo(string path, string pathFromCharacter, bool enabled, DeformerCachedStruct? deformer, Model.ShapeAttributeGroup? shapeAttributeGroup, ParsedMaterialInfo?[] materials, Stain? stain0, Stain? stain1, CharacterBase.ModelType? modelType = null, uint slotIndex = 0)
+public class ParsedModelInfo(string path, string pathFromCharacter, bool enabled, DeformerObservation? deformer, Model.ShapeAttributeGroup? shapeAttributeGroup, ParsedMaterialInfo?[] materials, Stain? stain0, Stain? stain1, CharacterBase.ModelType? modelType = null, uint slotIndex = 0)
 {
     public HandleString Path { get; } = new() { FullPath = path, GamePath = pathFromCharacter };
     public bool Enabled { get; } = enabled;
     public ParsedStain? Stain0 { get; } = stain0;
     public ParsedStain? Stain1 { get; } = stain1;
-    public DeformerCachedStruct? Deformer { get; } = deformer;
+    public DeformerObservation? Deformer { get; } = deformer;
     public Model.ShapeAttributeGroup? ShapeAttributeGroup { get; } = shapeAttributeGroup;
     public ParsedMaterialInfo?[] Materials { get; } = materials;
     public CharacterBase.ModelType? ModelType { get; } = modelType;

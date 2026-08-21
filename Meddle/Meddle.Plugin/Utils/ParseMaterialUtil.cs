@@ -130,7 +130,7 @@ public static class ParseMaterialUtil
                 materials.Add(materialInfo);
             }
             
-            var deform = modelType == CharacterBase.ModelType.Human ? pbdHooks.TryGetDeformer((nint)characterBase, model->SlotIndex) : null;
+            var deform = modelType == CharacterBase.ModelType.Human ? pbdHooks.TryGetObservation((nint)characterBase, model->SlotIndex) : null;
             var modelInfo = new ParsedModelInfo(
                 model->ModelResourceHandle->FileName.ParseString(), 
                 characterBase->ResolveMdlPath(model->SlotIndex), 

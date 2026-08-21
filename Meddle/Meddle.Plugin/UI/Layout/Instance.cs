@@ -5,6 +5,7 @@ using Dalamud.Bindings.ImGui;
 using Meddle.Plugin.Models.Layout;
 using Meddle.Plugin.Utils;
 using Meddle.Utils.Export;
+using Meddle.Utils.Export.Ue;
 using Meddle.Utils.Helpers;
 
 namespace Meddle.Plugin.UI.Layout;
@@ -238,9 +239,21 @@ public partial class LayoutWindow
                 UiUtil.Text($"Game Path: {modelInfo.Path.GamePath}", modelInfo.Path.GamePath);
                 if (modelInfo.Deformer != null)
                 {
-                    UiUtil.Text($"Deformer Path: {modelInfo.Deformer.Value.PbdPath}", modelInfo.Deformer.Value.PbdPath);
-                    ImGui.Text($"Deformer Id: {modelInfo.Deformer.Value.DeformerId}");
-                    ImGui.Text($"Race Sex Id: {modelInfo.Deformer.Value.RaceSexId}");
+                    ImGui.Text($"Deformer State: {modelInfo.Deformer.State}");
+                    if (!string.IsNullOrWhiteSpace(modelInfo.Deformer.PbdPath))
+                    {
+                        UiUtil.Text($"Deformer Path: {modelInfo.Deformer.PbdPath}", modelInfo.Deformer.PbdPath);
+                    }
+
+                    if (modelInfo.Deformer.DeformerId is { } deformerId)
+                    {
+                        ImGui.Text($"Deformer Id: {deformerId}");
+                    }
+
+                    if (modelInfo.Deformer.RaceSexId is { } raceSexId)
+                    {
+                        ImGui.Text($"Race Sex Id: {raceSexId}");
+                    }
                 }
 
                 foreach (var materialInfo in modelInfo.Materials)

@@ -23,6 +23,18 @@ public sealed class UeCharacterExportService : IService
 
     public UeExportResult Export(
         ParsedCharacterInfo characterInfo,
+        string destinationPath)
+    {
+        return Export(
+            characterInfo,
+            displayName: string.Empty,
+            objectKind: string.Empty,
+            destinationPath,
+            CancellationToken.None);
+    }
+
+    public UeExportResult Export(
+        ParsedCharacterInfo characterInfo,
         string displayName,
         string objectKind,
         string destinationPath,
@@ -85,4 +97,5 @@ public sealed class UeCharacterExportService : IService
                 observation.ResolvedPath);
         }
     }
+
 }

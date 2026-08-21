@@ -1,22 +1,31 @@
-using System.Text.Json;
-
 namespace Meddle.Utils.Export.Ue;
 
 public sealed class UeCharacterSnapshot
 {
     public int SchemaVersion { get; set; } = UeExportSchema.CurrentVersion;
     public UeGeneratorSnapshot? Generator { get; set; } = new();
-    public UeCaptureSnapshot? Capture { get; set; } = new();
-    public UeCustomizeSnapshot? Customize { get; set; } = new();
-    public List<UeModelSnapshot> Models { get; set; } = [];
-    public UeSkeletonSnapshot? Skeleton { get; set; } = new();
-    public UeAttachSnapshot? Attach { get; set; } = new();
-    public List<UeCharacterSnapshot> Attaches { get; set; } = [];
     public List<string> KnownCaptureGaps { get; set; } =
     [
         "SkinMaterialConstantBuffer",
         "HairRenderMaterialFlags"
     ];
+    public List<string> CaptureConditions { get; set; } =
+    [
+        "DeformerRuntimeObservationRequiresHumanCreateDeformerHookExecution"
+    ];
+
+    public UeCharacterNodeSnapshot? Root { get; set; }
+}
+
+public sealed class UeCharacterNodeSnapshot
+{
+    public string NodeId { get; set; } = "";
+    public UeCaptureSnapshot? Capture { get; set; } = new();
+    public UeCustomizeSnapshot? Customize { get; set; }
+    public List<UeModelSnapshot> Models { get; set; } = [];
+    public UeSkeletonSnapshot? Skeleton { get; set; }
+    public UeAttachSnapshot? Attach { get; set; }
+    public List<UeCharacterNodeSnapshot> Attaches { get; set; } = [];
 }
 
 public sealed class UeGeneratorSnapshot
@@ -118,10 +127,17 @@ public sealed class UeNamedMaskSnapshot
 
 public sealed class UeDeformerSnapshot
 {
-    public string Status { get; set; } = "NotObserved";
-    public string? PbdResourceId { get; set; }
+    public string Status { get; set; } = UeDeformerStatus.NotObserved;
+    public string? PbdResourcePath { get; set; }
     public int? RaceSexId { get; set; }
     public int? DeformerId { get; set; }
+    public UePbdResourceSnapshot? PbdResource { get; set; }
+}
+
+public sealed class UePbdResourceSnapshot
+{
+    public string? ResourceId { get; set; }
+    public UeResourceAvailability Availability { get; set; } = UeResourceAvailability.Unavailable;
 }
 
 public sealed class UeMaterialSnapshot
@@ -134,7 +150,7 @@ public sealed class UeMaterialSnapshot
     public string? ShaderPackageResourceId { get; set; }
     public UeStainSnapshot? Stain0 { get; set; }
     public UeStainSnapshot? Stain1 { get; set; }
-    public JsonElement? ColorTable { get; set; }
+    public UeColorTableSetSnapshot? ColorTable { get; set; }
     public List<UeTextureSnapshot> Textures { get; set; } = [];
     public UeRenderOverrideSnapshot? RenderOverrides { get; set; }
 }

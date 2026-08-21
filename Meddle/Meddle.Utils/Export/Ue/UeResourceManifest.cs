@@ -57,6 +57,8 @@ public sealed class UeExportObservation
 
     public string? ResourceId { get; set; }
 
+    public string? NodeId { get; set; }
+
     public string? ModelId { get; set; }
 
     public int? MaterialIndex { get; set; }

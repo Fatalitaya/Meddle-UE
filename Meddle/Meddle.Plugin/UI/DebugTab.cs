@@ -239,20 +239,17 @@ public class DebugTab : ITab
             ImGui.TableHeadersRow();
             foreach (var cachedDeformer in pbdHooks.GetDeformerCache())
             {
-                foreach (var deformer in cachedDeformer.Value)
-                {
-                    ImGui.TableNextRow();
-                    ImGui.TableNextColumn();
-                    ImGui.Text($"{cachedDeformer.Key:X8}");
-                    ImGui.TableNextColumn();
-                    ImGui.Text($"{deformer.Key}");
-                    ImGui.TableNextColumn();
-                    ImGui.Text($"{deformer.Value.DeformerId}");
-                    ImGui.TableNextColumn();
-                    ImGui.Text($"{deformer.Value.RaceSexId}");
-                    ImGui.TableNextColumn();
-                    ImGui.Text($"{deformer.Value.PbdPath}");
-                }
+                ImGui.TableNextRow();
+                ImGui.TableNextColumn();
+                ImGui.Text($"{cachedDeformer.HumanPtr:X8}");
+                ImGui.TableNextColumn();
+                ImGui.Text($"{cachedDeformer.Slot}");
+                ImGui.TableNextColumn();
+                ImGui.Text($"{cachedDeformer.Observation.DeformerId?.ToString() ?? "-"}");
+                ImGui.TableNextColumn();
+                ImGui.Text($"{cachedDeformer.Observation.RaceSexId?.ToString() ?? "-"}");
+                ImGui.TableNextColumn();
+                ImGui.Text($"{cachedDeformer.Observation.PbdPath ?? "-"}");
             }
         }
 

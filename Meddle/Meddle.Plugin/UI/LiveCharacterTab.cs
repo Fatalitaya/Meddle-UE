@@ -23,6 +23,7 @@ using Meddle.Plugin.Utils;
 using Meddle.Utils;
 using Meddle.Utils.Constants;
 using Meddle.Utils.Export;
+using Meddle.Utils.Export.Ue;
 using Meddle.Utils.Files;
 using Meddle.Utils.Files.SqPack;
 using Meddle.Utils.Helpers;
@@ -578,13 +579,24 @@ public unsafe class LiveCharacterTab : ITab
             }
 
             UiUtil.Text($"Skeleton Ptr: {(nint)model->Skeleton:X8}", $"{(nint)model->Skeleton:X8}");
-            var deformerInfo = modelType == CharacterBase.ModelType.Human ? pbd.TryGetDeformer((nint)cBase, model->SlotIndex) : null;
+            var deformerInfo = modelType == CharacterBase.ModelType.Human ? pbd.TryGetObservation((nint)cBase, model->SlotIndex) : null;
             if (deformerInfo != null)
             {
-                ImGui.Text(
-                    $"Deformer Id: {(GenderRace)deformerInfo.Value.DeformerId} ({deformerInfo.Value.DeformerId})");
-                ImGui.Text($"RaceSex Id: {(GenderRace)deformerInfo.Value.RaceSexId} ({deformerInfo.Value.RaceSexId})");
-                ImGui.Text($"Pbd Path: {deformerInfo.Value.PbdPath}");
+                ImGui.Text($"Deformer State: {deformerInfo.State}");
+                if (deformerInfo.DeformerId is { } deformerId)
+                {
+                    ImGui.Text($"Deformer Id: {(GenderRace)deformerId} ({deformerId})");
+                }
+
+                if (deformerInfo.RaceSexId is { } raceSexId)
+                {
+                    ImGui.Text($"RaceSex Id: {(GenderRace)raceSexId} ({raceSexId})");
+                }
+
+                if (!string.IsNullOrWhiteSpace(deformerInfo.PbdPath))
+                {
+                    ImGui.Text($"Pbd Path: {deformerInfo.PbdPath}");
+                }
             }
             else
             {

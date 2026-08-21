@@ -142,6 +142,7 @@ public sealed class UeResourceManifestBuilder
 
         var manifest = new UeResourceManifest
         {
+            SchemaVersion = UeExportSchema.CurrentVersion,
             Resources = orderedResources,
             Observations = [.. observations]
         };

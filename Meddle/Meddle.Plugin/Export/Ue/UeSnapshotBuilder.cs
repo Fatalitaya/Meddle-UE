@@ -1,9 +1,10 @@
-using System.Text.Json;
+using System.Numerics;
 using FFXIVClientStructs.FFXIV.Client.Graphics.Scene;
 using Meddle.Plugin.Models;
 using Meddle.Plugin.Models.Layout;
 using Meddle.Plugin.Models.Skeletons;
 using Meddle.Plugin.Utils;
+using Meddle.Utils.Constants;
 using Meddle.Utils.Export;
 using Meddle.Utils.Export.Ue;
 
@@ -17,7 +18,10 @@ public sealed class UeSnapshotBuilder
     private readonly List<UeExportObservation> observations = [];
     private readonly Dictionary<string, (byte[] Data, UeResourceOrigin Origin)> resourceReadCache = new(StringComparer.Ordinal);
 
-    private sealed record UePathResourceResult(UeResourceReference? Reference, UeResourceReadStatus Status);
+    private sealed record UePathResourceResult(
+        UeResourceReference? Reference,
+        UeResourceReadStatus Status,
+        byte[]? Data = null);
 
     public UeSnapshotBuilder(
         IUeResourceReader resourceReader,
@@ -29,9 +33,36 @@ public sealed class UeSnapshotBuilder
 
     public IReadOnlyList<UeExportObservation> Observations => observations;
 
-    public UeCharacterSnapshot? Build(ParsedCharacterInfo root, string? displayName, string? objectKind)
+    public UeCharacterSnapshot? Build(
+        ParsedCharacterInfo root,
+        string? displayName,
+        string? objectKind)
     {
-        return BuildCharacter(root, isRoot: true, displayName, objectKind, new HashSet<ParsedCharacterInfo>(ReferenceEqualityComparer.Instance));
+        var rootNode = BuildCharacter(
+            root,
+            nodeId: "root",
+            isRoot: true,
+            displayName,
+            objectKind,
+            new HashSet<ParsedCharacterInfo>(ReferenceEqualityComparer.Instance));
+        if (rootNode == null)
+        {
+            return null;
+        }
+
+        var provenance = BuildProvenance.Current;
+        return new UeCharacterSnapshot
+        {
+            SchemaVersion = UeExportSchema.CurrentVersion,
+            Generator = new UeGeneratorSnapshot
+            {
+                Version = provenance.Version,
+                Commit = provenance.Commit,
+                Dirty = provenance.Dirty,
+                BuildId = provenance.BuildId
+            },
+            Root = rootNode
+        };
     }
 
     public UeResourceBundle BuildBundle()
@@ -39,8 +70,9 @@ public sealed class UeSnapshotBuilder
         return resourceManifest.BuildBundle();
     }
 
-    private UeCharacterSnapshot? BuildCharacter(
+    private UeCharacterNodeSnapshot? BuildCharacter(
         ParsedCharacterInfo info,
+        string nodeId,
         bool isRoot,
         string? displayName,
         string? objectKind,
@@ -54,45 +86,39 @@ public sealed class UeSnapshotBuilder
 
         try
         {
-            var snapshot = new UeCharacterSnapshot();
-            if (isRoot)
+            var snapshot = new UeCharacterNodeSnapshot
             {
-                var provenance = BuildProvenance.Current;
-                snapshot.Generator = new UeGeneratorSnapshot
+                NodeId = nodeId,
+                Capture = new UeCaptureSnapshot
                 {
-                    Version = provenance.Version,
-                    Commit = provenance.Commit,
-                    Dirty = provenance.Dirty,
-                    BuildId = provenance.BuildId
-                };
-            }
-            else
-            {
-                snapshot.Generator = null;
-                snapshot.KnownCaptureGaps = [];
-            }
-
-            snapshot.Capture = new UeCaptureSnapshot
-            {
-                CapturedAtUtc = ToUtc(info.ParsedAt),
-                CharacterName = isRoot ? displayName : null,
-                ObjectKind = isRoot ? objectKind : null,
-                ModelType = info.ModelType.ToString(),
-                GenderRace = (int)info.GenderRace
+                    CapturedAtUtc = ToUtc(info.ParsedAt),
+                    CharacterName = isRoot ? displayName : null,
+                    ObjectKind = isRoot ? objectKind : null,
+                    ModelType = info.ModelType.ToString(),
+                    GenderRace = info.ModelType == CharacterBase.ModelType.Human &&
+                                info.GenderRace != GenderRace.Unknown
+                        ? (int)info.GenderRace
+                        : null
+                },
+                Customize = BuildCustomize(info),
+                Skeleton = BuildSkeleton(info.Skeleton, nodeId),
+                Attach = BuildAttach(info.Attach, nodeId)
             };
-            snapshot.Customize = BuildCustomize(info);
-
-            snapshot.Skeleton = BuildSkeleton(info.Skeleton);
-            snapshot.Attach = BuildAttach(info.Attach);
 
             for (var modelIndex = 0; modelIndex < info.Models.Count; modelIndex++)
             {
-                snapshot.Models.Add(BuildModel(info.Models[modelIndex], modelIndex));
+                snapshot.Models.Add(BuildModel(info.Models[modelIndex], modelIndex, nodeId));
             }
 
-            foreach (var attach in info.Attaches)
+            for (var attachIndex = 0; attachIndex < info.Attaches.Count; attachIndex++)
             {
-                var child = BuildCharacter(attach, isRoot: false, null, null, activePath);
+                var child = BuildCharacter(
+                    info.Attaches[attachIndex],
+                    nodeId: $"{nodeId}/attach-{attachIndex}",
+                    isRoot: false,
+                    null,
+                    null,
+                    activePath);
                 if (child != null)
                 {
                     snapshot.Attaches.Add(child);
@@ -163,10 +189,18 @@ public sealed class UeSnapshotBuilder
         return snapshot;
     }
 
-    private UeModelSnapshot BuildModel(ParsedModelInfo model, int modelIndex)
+    private UeModelSnapshot BuildModel(
+        ParsedModelInfo model,
+        int modelIndex,
+        string nodeId)
     {
-        var modelId = $"model-{modelIndex}";
-        var modelReference = RegisterPathResource(model.Path.GamePath, model.Path.FullPath, UeResourceType.Mdl, modelId);
+        var modelId = $"{nodeId}/model-{modelIndex}";
+        var modelReference = RegisterPathResource(
+            model.Path.GamePath,
+            model.Path.FullPath,
+            UeResourceType.Mdl,
+            modelId,
+            nodeId: nodeId);
         var snapshot = new UeModelSnapshot
         {
             Id = modelId,
@@ -179,7 +213,7 @@ public sealed class UeSnapshotBuilder
             Stain0 = model.Stain0 == null ? null : ToStain(model.Stain0),
             Stain1 = model.Stain1 == null ? null : ToStain(model.Stain1),
             ShapeAttributes = ToShapeAttributes(model.ShapeAttributeGroup),
-            Deformation = ToDeformation(model, modelId)
+            Deformation = ToDeformation(model, modelId, nodeId)
         };
 
         for (var materialIndex = 0; materialIndex < model.Materials.Length; materialIndex++)
@@ -188,27 +222,37 @@ public sealed class UeSnapshotBuilder
             snapshot.Materials.Add(
                 material == null
                     ? null
-                    : BuildMaterial(material, modelId, materialIndex));
+                    : BuildMaterial(material, modelId, nodeId, materialIndex));
         }
 
         return snapshot;
     }
 
-    private UeMaterialSnapshot? BuildMaterial(ParsedMaterialInfo material, string modelId, int materialIndex)
+    private UeMaterialSnapshot? BuildMaterial(
+        ParsedMaterialInfo material,
+        string modelId,
+        string nodeId,
+        int materialIndex)
     {
-        var materialReference = RegisterPathResource(material.Path.GamePath, material.Path.FullPath, UeResourceType.Mtrl, modelId, materialIndex);
+        var materialReference = RegisterPathResource(
+            material.Path.GamePath,
+            material.Path.FullPath,
+            UeResourceType.Mtrl,
+            modelId,
+            materialIndex,
+            nodeId: nodeId);
         var shpkPath = string.IsNullOrWhiteSpace(material.Shpk)
             ? null
             : $"shader/sm5/shpk/{material.Shpk}";
         var shpkReference = string.IsNullOrWhiteSpace(shpkPath)
             ? null
-            : RegisterPathResource(shpkPath, shpkPath, UeResourceType.Shpk, modelId, materialIndex);
-
-        JsonElement? colorTable = null;
-        if (material.ColorTableBlob != null)
-        {
-            colorTable = JsonSerializer.SerializeToElement(material.ColorTableBlob, UeExportJson.Options);
-        }
+            : RegisterPathResource(
+                shpkPath,
+                shpkPath,
+                UeResourceType.Shpk,
+                modelId,
+                materialIndex,
+                nodeId: nodeId);
 
         var snapshot = new UeMaterialSnapshot
         {
@@ -220,16 +264,22 @@ public sealed class UeSnapshotBuilder
             ShaderPackageResourceId = shpkReference?.Id,
             Stain0 = material.Stain0 == null ? null : ToStain(material.Stain0),
             Stain1 = material.Stain1 == null ? null : ToStain(material.Stain1),
-            ColorTable = colorTable,
+            ColorTable = UeColorTableSnapshotMapper.Map(material.ColorTable),
             RenderOverrides = material.RenderMaterialOutput == null
                 ? null
-                : BuildRenderOverrides(material.RenderMaterialOutput, modelId, materialIndex)
+                : BuildRenderOverrides(material.RenderMaterialOutput, modelId, nodeId, materialIndex)
         };
 
         for (var textureIndex = 0; textureIndex < material.Textures.Length; textureIndex++)
         {
             var texture = material.Textures[textureIndex];
-            var textureReference = RegisterPathResource(texture.Path.GamePath, texture.Path.FullPath, UeResourceType.Tex, modelId, materialIndex);
+            var textureReference = RegisterPathResource(
+                texture.Path.GamePath,
+                texture.Path.FullPath,
+                UeResourceType.Tex,
+                modelId,
+                materialIndex,
+                nodeId: nodeId);
             snapshot.Textures.Add(new UeTextureSnapshot
             {
                 LogicalPath = texture.Path.GamePath,
@@ -245,6 +295,7 @@ public sealed class UeSnapshotBuilder
     private UeRenderOverrideSnapshot? BuildRenderOverrides(
         OnRenderMaterialOutput output,
         string modelId,
+        string nodeId,
         int materialIndex)
     {
         var snapshot = new UeRenderOverrideSnapshot
@@ -262,7 +313,8 @@ public sealed class UeSnapshotBuilder
                 UeResourceType.Tex,
                 modelId,
                 materialIndex,
-                recordFailure: !hasRuntimeFallback);
+                recordFailure: !hasRuntimeFallback,
+                nodeId: nodeId);
             if (decalResult.Status == UeResourceReadStatus.Success && decalResult.Reference != null)
             {
                 snapshot.DecalTextureResourceId = decalResult.Reference.Value.Id;
@@ -286,7 +338,8 @@ public sealed class UeSnapshotBuilder
                     UeResourceType.Tex,
                     snapshot.DecalTextureResourceId,
                     modelId,
-                    materialIndex);
+                    materialIndex,
+                    nodeId: nodeId);
             }
             else if (decalResult.Reference != null)
             {
@@ -302,7 +355,13 @@ public sealed class UeSnapshotBuilder
         {
             var logicalPath = skinTexture.TexturePathFromMaterial;
             var resolvedPath = skinTexture.TexturePath;
-            var reference = RegisterPathResource(logicalPath, resolvedPath, UeResourceType.Tex, modelId, materialIndex);
+            var reference = RegisterPathResource(
+                logicalPath,
+                resolvedPath,
+                UeResourceType.Tex,
+                modelId,
+                materialIndex,
+                nodeId: nodeId);
             snapshot.SkinMaterialTextures.Add(new UeSkinMaterialTextureSnapshot
             {
                 LogicalPath = logicalPath,
@@ -357,50 +416,47 @@ public sealed class UeSnapshotBuilder
         };
     }
 
-    private UeDeformerSnapshot ToDeformation(ParsedModelInfo model, string modelId)
+    private UeDeformerSnapshot ToDeformation(
+        ParsedModelInfo model,
+        string modelId,
+        string nodeId)
     {
-        if (model.ModelType != null && model.ModelType != CharacterBase.ModelType.Human)
+        var isHuman = model.ModelType == CharacterBase.ModelType.Human;
+        var snapshot = UeDeformerSnapshotFactory.FromObservation(model.Deformer, isHuman);
+
+        if (snapshot.Status == UeDeformerStatus.Observed &&
+            !string.IsNullOrWhiteSpace(snapshot.PbdResourcePath))
         {
-            return new UeDeformerSnapshot
+            var pbdResult = ReadPathResource(
+                snapshot.PbdResourcePath,
+                snapshot.PbdResourcePath,
+                UeResourceType.Pbd,
+                modelId,
+                nodeId: nodeId);
+            snapshot.PbdResource = new UePbdResourceSnapshot
             {
-                Status = "NotApplicable"
+                ResourceId = pbdResult.Reference?.Id,
+                Availability =
+                    pbdResult.Status == UeResourceReadStatus.Success &&
+                    pbdResult.Reference != null
+                        ? UeResourceAvailability.Available
+                        : UeResourceReadPolicy.GetAvailability(pbdResult.Status)
             };
         }
 
-        if (model.Deformer == null)
+        if (snapshot.Status == UeDeformerStatus.NotObserved)
         {
             AddObservationEvent(
                 "DeformerNotObserved",
-                "Deformer state was not observed for this model.",
-                modelId: modelId);
-            return new UeDeformerSnapshot
-            {
-                Status = "NotObserved"
-            };
+                "Human_CreateDeformer observation is not available for this model; no deformer state was inferred.",
+                modelId: modelId,
+                nodeId: nodeId);
         }
 
-        var deformer = model.Deformer.Value;
-        var pbdReference = string.IsNullOrWhiteSpace(deformer.PbdPath)
-            ? null
-            : RegisterPathResource(deformer.PbdPath, deformer.PbdPath, UeResourceType.Pbd, modelId);
-        if (pbdReference == null)
-        {
-            AddObservationEvent(
-                "DeformerPbdSourceNotObserved",
-                "Deformer was observed but no PBD source path was observed.",
-                modelId: modelId);
-        }
-
-        return new UeDeformerSnapshot
-        {
-            Status = "Observed",
-            PbdResourceId = pbdReference?.Id,
-            RaceSexId = deformer.RaceSexId,
-            DeformerId = deformer.DeformerId
-        };
+        return snapshot;
     }
 
-    private UeSkeletonSnapshot BuildSkeleton(ParsedSkeleton skeleton)
+    private UeSkeletonSnapshot BuildSkeleton(ParsedSkeleton skeleton, string nodeId)
     {
         var snapshot = new UeSkeletonSnapshot
         {
@@ -409,13 +465,16 @@ public sealed class UeSnapshotBuilder
 
         for (var i = 0; i < skeleton.PartialSkeletons.Count; i++)
         {
-            snapshot.PartialSkeletons.Add(BuildPartialSkeleton(skeleton.PartialSkeletons[i], i));
+            snapshot.PartialSkeletons.Add(BuildPartialSkeleton(skeleton.PartialSkeletons[i], i, nodeId));
         }
 
         return snapshot;
     }
 
-    private UePartialSkeletonSnapshot BuildPartialSkeleton(ParsedPartialSkeleton partial, int index)
+    private UePartialSkeletonSnapshot BuildPartialSkeleton(
+        ParsedPartialSkeleton partial,
+        int index,
+        string nodeId)
     {
         var partialSnapshot = new UePartialSkeletonSnapshot
         {
@@ -453,7 +512,8 @@ public sealed class UeSnapshotBuilder
                     AddObservationEvent(
                         "SkeletonSourceNotObserved",
                         $"Partial skeleton {index} has runtime skeleton evidence but no HandlePath was observed.",
-                        partialSkeletonIndex: index);
+                        partialSkeletonIndex: index,
+                        nodeId: nodeId);
                 }
             }
             else
@@ -462,7 +522,8 @@ public sealed class UeSnapshotBuilder
                     partial.HandlePath,
                     partial.HandlePath,
                     UeResourceType.Sklb,
-                    partialSkeletonIndex: index);
+                    partialSkeletonIndex: index,
+                    nodeId: nodeId);
                 partialSnapshot.LogicalPath = partial.HandlePath;
                 partialSnapshot.ResolvedPath = partial.HandlePath;
                 partialSnapshot.ResourceId = reference?.Id;
@@ -489,7 +550,7 @@ public sealed class UeSnapshotBuilder
         return partialSnapshot;
     }
 
-    private UeAttachSnapshot BuildAttach(ParsedAttach attach)
+    private UeAttachSnapshot BuildAttach(ParsedAttach attach, string nodeId)
     {
         var snapshot = new UeAttachSnapshot
         {
@@ -500,8 +561,8 @@ public sealed class UeSnapshotBuilder
             BoneIdx = attach.BoneIdx
         };
 
-        snapshot.OwnerSkeleton = attach.OwnerSkeleton == null ? null : BuildSkeleton(attach.OwnerSkeleton);
-        snapshot.TargetSkeleton = attach.TargetSkeleton == null ? null : BuildSkeleton(attach.TargetSkeleton);
+        snapshot.OwnerSkeleton = attach.OwnerSkeleton == null ? null : BuildSkeleton(attach.OwnerSkeleton, nodeId);
+        snapshot.TargetSkeleton = attach.TargetSkeleton == null ? null : BuildSkeleton(attach.TargetSkeleton, nodeId);
         return snapshot;
     }
 
@@ -512,7 +573,8 @@ public sealed class UeSnapshotBuilder
         string? modelId = null,
         int? materialIndex = null,
         int? partialSkeletonIndex = null,
-        bool recordFailure = true)
+        bool recordFailure = true,
+        string? nodeId = null)
     {
         return ReadPathResource(
             logicalPath,
@@ -521,7 +583,8 @@ public sealed class UeSnapshotBuilder
             modelId,
             materialIndex,
             partialSkeletonIndex,
-            recordFailure).Reference;
+            recordFailure,
+            nodeId).Reference;
     }
 
     private UePathResourceResult ReadPathResource(
@@ -531,7 +594,8 @@ public sealed class UeSnapshotBuilder
         string? modelId = null,
         int? materialIndex = null,
         int? partialSkeletonIndex = null,
-        bool recordFailure = true)
+        bool recordFailure = true,
+        string? nodeId = null)
     {
         var effectiveResolved = string.IsNullOrWhiteSpace(resolvedPath) ? logicalPath : resolvedPath;
         var type = effectiveResolved == null
@@ -554,7 +618,8 @@ public sealed class UeSnapshotBuilder
                     type,
                     modelId: modelId,
                     materialIndex: materialIndex,
-                    partialSkeletonIndex: partialSkeletonIndex);
+                    partialSkeletonIndex: partialSkeletonIndex,
+                    nodeId: nodeId);
             }
 
             return new UePathResourceResult(null, UeResourceReadStatus.MissingPath);
@@ -593,7 +658,8 @@ public sealed class UeSnapshotBuilder
                         observationReference?.Id,
                         modelId,
                         materialIndex,
-                        partialSkeletonIndex);
+                        partialSkeletonIndex,
+                        nodeId);
                 }
 
                 return new UePathResourceResult(
@@ -627,7 +693,8 @@ public sealed class UeSnapshotBuilder
                         observationReference?.Id,
                         modelId,
                         materialIndex,
-                        partialSkeletonIndex);
+                        partialSkeletonIndex,
+                        nodeId);
                 }
 
                 return new UePathResourceResult(
@@ -653,7 +720,7 @@ public sealed class UeSnapshotBuilder
             Data = cached.Data,
             Origin = resourceOrigin
         });
-        return new UePathResourceResult(reference, UeResourceReadStatus.Success);
+        return new UePathResourceResult(reference, UeResourceReadStatus.Success, cached.Data);
     }
 
     private void AddObservationEvent(
@@ -665,7 +732,8 @@ public sealed class UeSnapshotBuilder
         string? resourceId = null,
         string? modelId = null,
         int? materialIndex = null,
-        int? partialSkeletonIndex = null)
+        int? partialSkeletonIndex = null,
+        string? nodeId = null)
     {
         var observation = new UeExportObservation
         {
@@ -675,6 +743,7 @@ public sealed class UeSnapshotBuilder
             LogicalPath = logicalPath,
             ResolvedPath = resolvedPath,
             ResourceId = resourceId,
+            NodeId = nodeId,
             ModelId = modelId,
             MaterialIndex = materialIndex,
             PartialSkeletonIndex = partialSkeletonIndex
@@ -747,17 +816,17 @@ public sealed class UeSnapshotBuilder
         };
     }
 
-    private static float[] AsFloatArray(System.Numerics.Vector3 value)
+    private static float[] AsFloatArray(Vector3 value)
     {
         return [value.X, value.Y, value.Z];
     }
 
-    private static float[] AsFloatArray(System.Numerics.Vector4 value)
+    private static float[] AsFloatArray(Vector4 value)
     {
         return [value.X, value.Y, value.Z, value.W];
     }
 
-    private static float[] AsFloatArray(System.Numerics.Quaternion value)
+    private static float[] AsFloatArray(Quaternion value)
     {
         return [value.X, value.Y, value.Z, value.W];
     }

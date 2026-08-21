@@ -7,6 +7,7 @@ using Meddle.Plugin.Utils;
 using Meddle.Utils;
 using Meddle.Utils.Constants;
 using Meddle.Utils.Export;
+using Meddle.Utils.Export.Ue;
 using Meddle.Utils.Files.SqPack;
 using Microsoft.Extensions.Logging;
 using SharpGLTF.Materials;
@@ -98,19 +99,25 @@ public class CharacterComposer
         (GenderRace from, GenderRace to, RaceDeformer deformer)? deform = null;
         if (exportConfig.UseDeformer)
         {
-            if (m.Deformer != null)
+            if (m.Deformer is { State: DeformerObservationState.Present } deformerObservation)
             {
-                // custom pbd may exist
-                var pbdFile = composerCache.GetPbdFile(m.Deformer.Value.PbdPath);
-                if (pbdFile == null)
+                if (deformerObservation.DeformerId is not { } deformerId ||
+                    deformerObservation.RaceSexId is not { } raceSexId ||
+                    string.IsNullOrWhiteSpace(deformerObservation.PbdPath))
                 {
-                    throw new InvalidOperationException($"Failed to get deformer pbd {m.Deformer.Value.PbdPath} returned null");
+                    throw new InvalidOperationException("Observed deformer is missing required runtime fields.");
                 }
 
-                deform = ((GenderRace)m.Deformer.Value.DeformerId,
-                             (GenderRace)m.Deformer.Value.RaceSexId,
+                var pbdFile = composerCache.GetPbdFile(deformerObservation.PbdPath);
+                if (pbdFile == null)
+                {
+                    throw new InvalidOperationException($"Failed to get deformer pbd {deformerObservation.PbdPath} returned null");
+                }
+
+                deform = ((GenderRace)deformerId,
+                             (GenderRace)raceSexId,
                              new RaceDeformer(pbdFile, skinningContext.Bones));
-                Plugin.Logger.LogDebug("Using deformer pbd {Path}", m.Deformer.Value.PbdPath);
+                Plugin.Logger.LogDebug("Using deformer pbd {Path}", deformerObservation.PbdPath);
             }
             else
             {

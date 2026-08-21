@@ -1,14 +1,7 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 using FFXIVClientStructs.FFXIV.Client.System.Resource.Handle;
 
 namespace Meddle.Plugin.Models.Structs;
-
-public struct DeformerCachedStruct
-{
-    public ushort RaceSexId;
-    public ushort DeformerId;
-    public string PbdPath;
-}
 
 [StructLayout(LayoutKind.Explicit, Size = 0x20)]
 public struct DeformerStruct
