@@ -22,5 +22,16 @@ public enum RuntimeAuditCategory
     Deformer,
 
     /// <summary>Currently resolved character appearance data in FFXIV-native representation.</summary>
-    Customize
+    Customize,
+    /// <summary>Per-slot equipped, enabled and visible runtime state.</summary>
+    EquipmentVisibility,
+
+    /// <summary>Runtime visor flags and observable affected draw slots.</summary>
+    VisorState,
+
+    /// <summary>Runtime draw-object attachment relationships.</summary>
+    Attachment,
+
+    /// <summary>Main-hand and off-hand runtime draw objects.</summary>
+    Weapon
 }

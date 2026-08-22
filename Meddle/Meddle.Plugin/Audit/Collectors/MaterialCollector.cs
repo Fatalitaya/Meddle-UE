@@ -31,17 +31,26 @@ public sealed unsafe class MaterialCollector : IRuntimeAuditCollector
             var result = new RuntimeAuditCollectorResult { Status = RuntimeAuditAvailability.Unknown };
             var observedAny = false;
             var materials = new List<object?>();
-            foreach (var modelPtr in characterBase->ModelsSpan)
+            foreach (var materialRoot in AuditCollectorUtil.EnumerateMaterialRoots(context.ActorAddress))
             {
-                if (modelPtr == null || modelPtr.Value == null)
+                var currentBase = (FFXIVClientStructs.FFXIV.Client.Graphics.Scene.CharacterBase*)materialRoot.Address;
+                foreach (var modelPtr in currentBase->ModelsSpan)
                 {
-                    continue;
-                }
+                    if (modelPtr == null || modelPtr.Value == null)
+                    {
+                        continue;
+                    }
 
-                var model = modelPtr.Value;
-                for (var materialIndex = 0; materialIndex < model->MaterialsSpan.Length; materialIndex++)
-                {
-                    materials.Add(CaptureMaterial(model, materialIndex, ref observedAny));
+                    var model = modelPtr.Value;
+                    for (var materialIndex = 0; materialIndex < model->MaterialsSpan.Length; materialIndex++)
+                    {
+                        materials.Add(CaptureMaterial(
+                            model,
+                            materialIndex,
+                            materialRoot.OwnerKind,
+                            materialRoot.WeaponIndex,
+                            ref observedAny));
+                    }
                 }
             }
 
@@ -66,6 +75,8 @@ public sealed unsafe class MaterialCollector : IRuntimeAuditCollector
     private static object? CaptureMaterial(
         CSModel* model,
         int materialIndex,
+        string ownerKind,
+        int? weaponIndex,
         ref bool observedAny)
     {
         var materialPtr = model->MaterialsSpan[materialIndex];
@@ -75,6 +86,8 @@ public sealed unsafe class MaterialCollector : IRuntimeAuditCollector
             {
                 ["materialIndex"] = materialIndex,
                 ["modelSlot"] = model->SlotIndex,
+                ["ownerKind"] = ownerKind,
+                ["weaponIndex"] = weaponIndex,
                 ["available"] = false
             };
         }
@@ -87,6 +100,8 @@ public sealed unsafe class MaterialCollector : IRuntimeAuditCollector
             {
                 ["materialIndex"] = materialIndex,
                 ["modelSlot"] = model->SlotIndex,
+                ["ownerKind"] = ownerKind,
+                ["weaponIndex"] = weaponIndex,
                 ["available"] = false,
                 ["reason"] = "Material has no MaterialResourceHandle"
             };
@@ -111,6 +126,8 @@ public sealed unsafe class MaterialCollector : IRuntimeAuditCollector
         {
             ["materialIndex"] = materialIndex,
             ["modelSlot"] = model->SlotIndex,
+            ["ownerKind"] = ownerKind,
+            ["weaponIndex"] = weaponIndex,
             ["materialAddress"] = $"0x{(nint)material:X}",
             ["path"] = materialPath,
             ["logicalPath"] = materialPathFromModel,

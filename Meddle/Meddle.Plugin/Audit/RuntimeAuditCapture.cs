@@ -22,7 +22,11 @@ public sealed unsafe class RuntimeAuditCapture
             new MaterialCollector(),
             new RuntimeTextureCollector(),
             new DeformerCollector(pbdHooks),
-            new CustomizeCollector()
+            new CustomizeCollector(),
+            new EquipmentVisibilityCollector(),
+            new VisorStateCollector(),
+            new AttachmentCollector(),
+            new WeaponCollector()
         ];
     }
 

@@ -14,6 +14,8 @@ namespace Meddle.Utils.Audit;
 ///         materials.json    (projection: Material)
 ///         skeletons.json    (projection: SkeletonEvidence)
 ///         deformers.json    (projection: Deformer)
+///         FFXIVCharacterRuntimeAudit.json
+///                          (consolidated character audit report)
 ///
 /// Every file is marked "Experimental audit format". Missing files are never
 /// fatal: loading tolerates an incomplete dump and returns the canonical
@@ -26,9 +28,14 @@ public static class RuntimeAuditSerializer
     public static async Task WriteAsync(
         RuntimeAuditSession session,
         string directory,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        DateTime? generatedAtUtc = null)
     {
         Directory.CreateDirectory(directory);
+        // Capture one timestamp for the whole derived dump. Tests and tooling
+        // may inject it to produce reproducible golden projections; production
+        // callers retain wall-clock generation time by default.
+        var dumpGeneratedAtUtc = generatedAtUtc ?? DateTime.UtcNow;
         var sessionFile = Path.Combine(directory, RuntimeAuditFormat.RuntimeJson);
         await File.WriteAllTextAsync(
             sessionFile,
@@ -40,6 +47,7 @@ public static class RuntimeAuditSerializer
             RuntimeAuditFormat.ResourcesJson,
             session,
             [RuntimeAuditCategory.CharacterComposition, RuntimeAuditCategory.RuntimeTexture],
+            dumpGeneratedAtUtc,
             cancellationToken).ConfigureAwait(false);
 
         await WriteProjectionAsync(
@@ -47,6 +55,7 @@ public static class RuntimeAuditSerializer
             RuntimeAuditFormat.MaterialsJson,
             session,
             [RuntimeAuditCategory.Material],
+            dumpGeneratedAtUtc,
             cancellationToken).ConfigureAwait(false);
 
         await WriteProjectionAsync(
@@ -54,6 +63,7 @@ public static class RuntimeAuditSerializer
             RuntimeAuditFormat.SkeletonsJson,
             session,
             [RuntimeAuditCategory.SkeletonEvidence],
+            dumpGeneratedAtUtc,
             cancellationToken).ConfigureAwait(false);
 
         await WriteProjectionAsync(
@@ -61,6 +71,14 @@ public static class RuntimeAuditSerializer
             RuntimeAuditFormat.DeformersJson,
             session,
             [RuntimeAuditCategory.Deformer],
+            dumpGeneratedAtUtc,
+            cancellationToken).ConfigureAwait(false);
+
+        await WriteReportAsync(session, directory, dumpGeneratedAtUtc, cancellationToken).ConfigureAwait(false);
+
+        await File.WriteAllTextAsync(
+            Path.Combine(directory, RuntimeAuditFormat.SnapshotJson),
+            JsonSerializer.Serialize(RuntimeCharacterSnapshotBuilder.Build(session), JsonOptions),
             cancellationToken).ConfigureAwait(false);
     }
 
@@ -125,6 +143,7 @@ public static class RuntimeAuditSerializer
         string fileName,
         RuntimeAuditSession session,
         RuntimeAuditCategory[] categories,
+        DateTime generatedAtUtc,
         CancellationToken cancellationToken)
     {
         var categorySet = categories.ToHashSet();
@@ -136,7 +155,7 @@ public static class RuntimeAuditSerializer
         {
             ["format"] = RuntimeAuditFormat.FormatMarker,
             ["schemaVersion"] = RuntimeAuditFormat.SchemaVersion,
-            ["generatedAtUtc"] = DateTime.UtcNow.ToString("O"),
+            ["generatedAtUtc"] = generatedAtUtc.ToUniversalTime().ToString("O"),
             ["captureId"] = session.CaptureId,
             ["categories"] = categories.Select(c => c.ToString()).ToArray(),
             ["observations"] = observations
@@ -152,6 +171,19 @@ public static class RuntimeAuditSerializer
         return Enum.TryParse<RuntimeAuditCategory>(category, out var value)
             ? value
             : null;
+    }
+
+    private static async Task WriteReportAsync(
+        RuntimeAuditSession session,
+        string directory,
+        DateTime generatedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        var report = RuntimeAuditReport.Build(session, generatedAtUtc);
+        await File.WriteAllTextAsync(
+            Path.Combine(directory, RuntimeAuditFormat.ReportJson),
+            JsonSerializer.Serialize(report, JsonOptions),
+            cancellationToken).ConfigureAwait(false);
     }
 
     private static JsonSerializerOptions CreateJsonOptions()

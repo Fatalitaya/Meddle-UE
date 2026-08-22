@@ -149,9 +149,11 @@ public sealed unsafe class CustomizeCollector : IRuntimeAuditCollector
         for (var slot = 0; slot <= (int)HumanEquipmentSlotIndex.Extra; slot++)
         {
             var modelId = (&human->Head)[slot];
-            equipment.Add(new Dictionary<string, object?>
-            {
-                ["slot"] = slot,
+			equipment.Add(new Dictionary<string, object?>
+			{
+				["slot"] = slot,
+				["slotName"] = null,
+				["semanticSlotStatus"] = "Unknown",
                 ["id"] = modelId.Id,
                 ["variant"] = modelId.Variant,
                 ["stain0"] = modelId.Stain0,

@@ -56,6 +56,59 @@ public sealed class RuntimeAuditRunnerTests
         Assert.AreEqual(RuntimeAuditAvailability.Unavailable, session.Observations[0].Availability);
     }
 
+    [TestMethod]
+    public void CollectorStatusMerge_LaterAvailableEvidenceReplacesInitialUnknown()
+    {
+        Assert.AreEqual(
+            RuntimeAuditAvailability.Available,
+            RuntimeAuditAvailabilityRules.Merge(
+                RuntimeAuditAvailability.Unknown,
+                RuntimeAuditAvailability.Available));
+        Assert.AreEqual(
+            RuntimeAuditAvailability.Available,
+            RuntimeAuditAvailabilityRules.Merge(
+                RuntimeAuditAvailability.Unavailable,
+                RuntimeAuditAvailability.Available));
+        Assert.AreEqual(
+            RuntimeAuditAvailability.Available,
+            RuntimeAuditAvailabilityRules.Merge(
+                RuntimeAuditAvailability.Available,
+                RuntimeAuditAvailability.Unknown));
+    }
+
+    [TestMethod]
+    public void RuntimeTextureWithoutResourcePath_IsAmbiguousNotGenerated()
+    {
+        var evidence = RuntimeTextureEvidence.ClassifyGeneratedStatus(
+            "chara/common/texture/decal.tex",
+            null,
+            hasExplicitRuntimeGeneratedEvidence: false);
+
+        Assert.AreEqual("unknown", evidence.Status);
+        StringAssert.Contains(evidence.Reason, "resource path");
+    }
+
+    [TestMethod]
+    public void WeaponMaterialAndTextureTraversal_IncludesExplicitChildDrawObjects()
+    {
+        var roots = RuntimeMaterialRootTraversal.Build(
+            (nint)0x1000,
+            [
+                new RuntimeWeaponDrawObjectEvidence((nint)0x2000, 0, true),
+                new RuntimeWeaponDrawObjectEvidence((nint)0x3000, 1, true),
+                new RuntimeWeaponDrawObjectEvidence((nint)0x4000, 2, false),
+                new RuntimeWeaponDrawObjectEvidence((nint)0x2000, 3, true)
+            ]);
+
+        Assert.AreEqual(3, roots.Count);
+        Assert.AreEqual("Actor", roots[0].OwnerKind);
+        CollectionAssert.AreEqual(
+            new[] { 0, 1 },
+            roots.Where(root => root.OwnerKind == "Weapon")
+                .Select(root => root.WeaponIndex!.Value)
+                .ToArray());
+    }
+
     private sealed class ThrowingCollector : IRuntimeAuditCollector
     {
         public ThrowingCollector(RuntimeAuditCategory category)

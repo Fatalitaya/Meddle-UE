@@ -33,6 +33,32 @@ internal static unsafe class AuditCollectorUtil
         return (CharacterBase*)drawObject;
     }
 
+    /// <summary>
+    /// Returns the actor draw object and explicitly linked weapon draw objects.
+    /// OwnerKind is evidence from the owning field, not an inference from a
+    /// model slot or file name.
+    /// </summary>
+    public static IReadOnlyList<RuntimeMaterialRootEvidence> EnumerateMaterialRoots(nint actorAddress)
+    {
+        var root = TryGetCharacterBase(actorAddress);
+        var weapons = new List<RuntimeWeaponDrawObjectEvidence>();
+        if (actorAddress == 0)
+        {
+            return RuntimeMaterialRootTraversal.Build((nint)root, weapons);
+        }
+
+        var character = (Character*)actorAddress;
+        for (var index = 0; index < character->DrawData.WeaponData.Length; index++)
+        {
+			var drawObject = character->DrawData.WeaponData[index].DrawData.DrawObject;
+            weapons.Add(new RuntimeWeaponDrawObjectEvidence(
+                (nint)drawObject,
+                index,
+                drawObject != null && drawObject->GetObjectType() == ObjectType.CharacterBase));
+        }
+        return RuntimeMaterialRootTraversal.Build((nint)root, weapons);
+    }
+
     public static RuntimeAuditObservation Observation(
         RuntimeAuditCollectorContext context,
         RuntimeAuditCategory category,

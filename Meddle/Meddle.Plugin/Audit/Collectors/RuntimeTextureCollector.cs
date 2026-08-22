@@ -31,37 +31,43 @@ public sealed unsafe class RuntimeTextureCollector : IRuntimeAuditCollector
             var result = new RuntimeAuditCollectorResult { Status = RuntimeAuditAvailability.Unknown };
             var observedAny = false;
             var bindings = new List<object?>();
-            foreach (var modelPtr in characterBase->ModelsSpan)
+            foreach (var materialRoot in AuditCollectorUtil.EnumerateMaterialRoots(context.ActorAddress))
             {
-                if (modelPtr == null || modelPtr.Value == null)
+                var currentBase = (FFXIVClientStructs.FFXIV.Client.Graphics.Scene.CharacterBase*)materialRoot.Address;
+                foreach (var modelPtr in currentBase->ModelsSpan)
                 {
-                    continue;
-                }
-
-                var model = modelPtr.Value;
-                for (var materialIndex = 0; materialIndex < model->MaterialsSpan.Length; materialIndex++)
-                {
-                    var materialPtr = model->MaterialsSpan[materialIndex];
-                    if (materialPtr == null || materialPtr.Value == null)
+                    if (modelPtr == null || modelPtr.Value == null)
                     {
                         continue;
                     }
 
-                    var handle = materialPtr.Value->MaterialResourceHandle;
-                    if (handle == null)
+                    var model = modelPtr.Value;
+                    for (var materialIndex = 0; materialIndex < model->MaterialsSpan.Length; materialIndex++)
                     {
-                        continue;
-                    }
+                        var materialPtr = model->MaterialsSpan[materialIndex];
+                        if (materialPtr == null || materialPtr.Value == null)
+                        {
+                            continue;
+                        }
 
-                    for (var textureIndex = 0; textureIndex < handle->TexturesSpan.Length; textureIndex++)
-                    {
-                        bindings.Add(CaptureBinding(
-                            materialPtr.Value,
-                            handle,
-                            model->SlotIndex,
-                            materialIndex,
-                            textureIndex,
-                            ref observedAny));
+                        var handle = materialPtr.Value->MaterialResourceHandle;
+                        if (handle == null)
+                        {
+                            continue;
+                        }
+
+                        for (var textureIndex = 0; textureIndex < handle->TexturesSpan.Length; textureIndex++)
+                        {
+                            bindings.Add(CaptureBinding(
+                                materialPtr.Value,
+                                handle,
+                                model->SlotIndex,
+                                materialIndex,
+                                textureIndex,
+                                materialRoot.OwnerKind,
+                                materialRoot.WeaponIndex,
+                                ref observedAny));
+                        }
                     }
                 }
             }
@@ -90,6 +96,8 @@ public sealed unsafe class RuntimeTextureCollector : IRuntimeAuditCollector
         uint modelSlot,
         int materialIndex,
         int textureIndex,
+        string ownerKind,
+        int? weaponIndex,
         ref bool observedAny)
     {
         var binding = materialHandle->TexturesSpan[textureIndex];
@@ -101,6 +109,8 @@ public sealed unsafe class RuntimeTextureCollector : IRuntimeAuditCollector
                 ["modelSlot"] = modelSlot,
                 ["materialIndex"] = materialIndex,
                 ["index"] = textureIndex,
+                ["ownerKind"] = ownerKind,
+                ["weaponIndex"] = weaponIndex,
                 ["available"] = false
             };
         }
@@ -113,6 +123,8 @@ public sealed unsafe class RuntimeTextureCollector : IRuntimeAuditCollector
                 ["modelSlot"] = modelSlot,
                 ["materialIndex"] = materialIndex,
                 ["index"] = textureIndex,
+                ["ownerKind"] = ownerKind,
+                ["weaponIndex"] = weaponIndex,
                 ["available"] = false,
                 ["reason"] = "TextureResourceHandle has no Texture"
             };
@@ -123,7 +135,10 @@ public sealed unsafe class RuntimeTextureCollector : IRuntimeAuditCollector
             ? materialHandle->TexturePath(textureIndex).ToString()
             : null;
         var resourcePath = textureResourceHandle->FileName.ParseString();
-        var generatedStatus = ClassifyGeneratedStatus(sourcePath, resourcePath);
+        var generatedEvidence = RuntimeTextureEvidence.ClassifyGeneratedStatus(
+            sourcePath,
+            resourcePath,
+            hasExplicitRuntimeGeneratedEvidence: false);
 
         uint? bindingId = null;
         uint? samplerFlags = null;
@@ -139,13 +154,16 @@ public sealed unsafe class RuntimeTextureCollector : IRuntimeAuditCollector
             ["modelSlot"] = modelSlot,
             ["materialIndex"] = materialIndex,
             ["index"] = textureIndex,
+            ["ownerKind"] = ownerKind,
+            ["weaponIndex"] = weaponIndex,
             ["bindingId"] = bindingId,
             ["samplerFlags"] = samplerFlags,
             ["runtimeHandle"] = $"0x{(nint)texture:X}",
             ["sourcePath"] = sourcePath,
             ["resourcePath"] = resourcePath,
             ["fileSize"] = textureResourceHandle->FileSize,
-            ["generatedStatus"] = generatedStatus,
+            ["generatedStatus"] = generatedEvidence.Status,
+            ["generatedReason"] = generatedEvidence.Reason,
             ["width"] = texture->ActualWidth,
             ["height"] = texture->ActualHeight,
             ["depth"] = texture->Depth,
@@ -155,15 +173,4 @@ public sealed unsafe class RuntimeTextureCollector : IRuntimeAuditCollector
         };
     }
 
-    private static string ClassifyGeneratedStatus(string? sourcePath, string? resourcePath)
-    {
-        var hasSource = !string.IsNullOrWhiteSpace(sourcePath);
-        var hasResource = !string.IsNullOrWhiteSpace(resourcePath);
-        if (!hasResource)
-        {
-            return hasSource ? "runtime-generated" : "unknown";
-        }
-
-        return hasSource ? "file" : "runtime-provided";
-    }
 }

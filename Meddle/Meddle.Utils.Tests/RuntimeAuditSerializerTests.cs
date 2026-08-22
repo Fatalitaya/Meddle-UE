@@ -118,7 +118,9 @@ public sealed class RuntimeAuditSerializerTests
                 using var document = JsonDocument.Parse(json);
                 var root = document.RootElement;
                 Assert.AreEqual(
-                    RuntimeAuditFormat.FormatMarker,
+                    fileName == RuntimeAuditFormat.SnapshotJson
+                        ? RuntimeCharacterSnapshot.Contract
+                        : RuntimeAuditFormat.FormatMarker,
                     root.GetProperty("format").GetString(),
                     $"File {fileName} must be marked experimental");
                 Assert.AreEqual(
@@ -126,6 +128,13 @@ public sealed class RuntimeAuditSerializerTests
                     root.GetProperty("schemaVersion").GetInt32(),
                     $"File {fileName} must carry the schema version");
             }
+
+            var reportJson = await File.ReadAllTextAsync(
+                Path.Combine(directory, RuntimeAuditFormat.ReportJson));
+            using var reportDocument = JsonDocument.Parse(reportJson);
+            Assert.IsTrue(reportDocument.RootElement.TryGetProperty("actor", out _));
+            Assert.IsTrue(reportDocument.RootElement.TryGetProperty("drawObjects", out _));
+            Assert.IsTrue(reportDocument.RootElement.TryGetProperty("missingData", out _));
         }
         finally
         {

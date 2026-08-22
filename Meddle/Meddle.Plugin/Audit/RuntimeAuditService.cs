@@ -240,6 +240,12 @@ public sealed class RuntimeAuditService : IService, IDisposable
             }
 
             var tick = capture.Capture(activeCaptureId, target.Value.Address, target.Value.Name, target.Value.Kind);
+            foreach (var (category, status) in tick.CollectorStatus)
+            {
+                activeSession.CollectorStatus[category] = activeSession.CollectorStatus.TryGetValue(category, out var current)
+                    ? RuntimeAuditAvailabilityRules.Merge(current, status)
+                    : status;
+            }
             foreach (var observation in tick.Observations)
             {
                 activeSession.AddObservation(observation);

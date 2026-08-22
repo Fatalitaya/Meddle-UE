@@ -31,6 +31,7 @@ public static class UeResourceIdentity
             ".sklb" => UeResourceType.Sklb,
             ".pbd" => UeResourceType.Pbd,
             ".shpk" => UeResourceType.Shpk,
+            ".pap" => UeResourceType.Pap,
             _ => UeResourceType.Unknown
         };
     }
@@ -45,6 +46,7 @@ public static class UeResourceIdentity
             UeResourceType.Sklb => ".sklb",
             UeResourceType.Pbd => ".pbd",
             UeResourceType.Shpk => ".shpk",
+            UeResourceType.Pap => ".pap",
             _ => string.Empty
         };
     }
@@ -99,6 +101,7 @@ public enum UeResourceType
     Sklb,
     Pbd,
     Shpk,
+    Pap,
     Unknown
 }
 

@@ -21,6 +21,8 @@ public static class RuntimeAuditFormat
     public const string MaterialsJson = "materials.json";
     public const string SkeletonsJson = "skeletons.json";
     public const string DeformersJson = "deformers.json";
+    public const string ReportJson = "FFXIVCharacterRuntimeAudit.json";
+    public const string SnapshotJson = "RuntimeCharacterSnapshot.json";
 
     /// <summary>
     /// Files written by <see cref="RuntimeAuditSerializer"/>.
@@ -32,6 +34,8 @@ public static class RuntimeAuditFormat
         ResourcesJson,
         MaterialsJson,
         SkeletonsJson,
-        DeformersJson
+        DeformersJson,
+        SnapshotJson,
+        ReportJson
     ];
 }
