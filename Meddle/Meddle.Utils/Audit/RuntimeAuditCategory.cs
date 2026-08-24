@@ -33,5 +33,12 @@ public enum RuntimeAuditCategory
     Attachment,
 
     /// <summary>Main-hand and off-hand runtime draw objects.</summary>
-    Weapon
+    Weapon,
+
+    /// <summary>
+    /// Runtime animation resource evidence: observed skeleton handles and PAP
+    /// resource loads. This is evidence, not authoritative actor-to-PAP
+    /// attribution.
+    /// </summary>
+    AnimationEvidence
 }

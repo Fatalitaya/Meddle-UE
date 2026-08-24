@@ -363,11 +363,6 @@
         "resolved": "10.0.1",
         "contentHash": "xfaHEHVDkMOOZR5S6ZGezD0+vekdH1Nx/9Ih8/rOqOGSOk1fxiN3u94bYkBW/wigj0Uw2Wt3vvRj9mtYdgwEjw=="
       },
-      "System.IO.Hashing": {
-        "type": "Transitive",
-        "resolved": "10.0.1",
-        "contentHash": "Dy6ULPb2S0GmNndjKrEIpfibNsc8+FTOoZnqygtFDuyun8vWboQbfMpQtKUXpgTxokR5E4zFHETpNnGfeWY6NA=="
-      },
       "Vortice.DirectX": {
         "type": "Transitive",
         "resolved": "3.8.1",
@@ -392,14 +387,26 @@
         "resolved": "2.0.0",
         "contentHash": "I+ctNBG8qLWRlaQgLRiS08HZTiuTdvlrYhrxp5B7uOJHD0QQaDxRfrV0cq4xxKyj+9+jqJZMy28l/NwvsgyVlQ=="
       },
+      "meddle.formats": {
+        "type": "Project",
+        "dependencies": {
+          "Meddle.SqPack": "[1.0.0, )"
+        }
+      },
+      "meddle.sqpack": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.Extensions.Logging.Abstractions": "[10.0.1, )"
+        }
+      },
       "meddle.utils": {
         "type": "Project",
         "dependencies": {
+          "Meddle.Formats": "[1.0.0, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.1, )",
           "SharpGLTF.Core": "[1.0.5, )",
           "SharpGLTF.Toolkit": "[1.0.5, )",
-          "SkiaSharp": "[3.119.0, )",
-          "System.IO.Hashing": "[10.0.1, )"
+          "SkiaSharp": "[3.119.0, )"
         }
       }
     }

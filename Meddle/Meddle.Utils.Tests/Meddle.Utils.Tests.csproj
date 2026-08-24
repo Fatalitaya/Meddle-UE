@@ -17,5 +17,13 @@
 
     <ItemGroup>
         <ProjectReference Include="..\Meddle.Utils\Meddle.Utils.csproj" />
+        <ProjectReference Include="..\Meddle.Formats\Meddle.Formats.csproj" />
+        <ProjectReference Include="..\Meddle.SqPack\Meddle.SqPack.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Reference Include="OtterTex">
+            <HintPath>..\Meddle.Utils\Lib\OtterTex.dll</HintPath>
+        </Reference>
     </ItemGroup>
 </Project>

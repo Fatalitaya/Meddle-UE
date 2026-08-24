@@ -1,5 +1,6 @@
 using Meddle.Plugin.Audit.Collectors;
 using Meddle.Plugin.Services;
+using Meddle.Plugin.Utils;
 using Meddle.Utils.Audit;
 
 namespace Meddle.Plugin.Audit;
@@ -13,19 +14,23 @@ public sealed unsafe class RuntimeAuditCapture
 {
     private readonly IReadOnlyList<IRuntimeAuditCollector> collectors;
 
-    public RuntimeAuditCapture(PbdHooks pbdHooks)
+    public RuntimeAuditCapture(
+        PbdHooks pbdHooks,
+        SigUtil sigUtil,
+        PapResourceTracker papResourceTracker)
     {
         collectors =
         [
             new CharacterCompositionCollector(),
             new SkeletonCompositionCollector(),
+            new AnimationEvidenceCollector(papResourceTracker),
             new MaterialCollector(),
             new RuntimeTextureCollector(),
             new DeformerCollector(pbdHooks),
             new CustomizeCollector(),
             new EquipmentVisibilityCollector(),
             new VisorStateCollector(),
-            new AttachmentCollector(),
+            new AttachmentCollector(sigUtil),
             new WeaponCollector()
         ];
     }

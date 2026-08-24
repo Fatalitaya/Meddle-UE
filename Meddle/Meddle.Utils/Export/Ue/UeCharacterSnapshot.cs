@@ -196,6 +196,11 @@ public sealed class UeSkinMaterialTextureSnapshot
 
 public sealed class UeSkeletonSnapshot
 {
+    /// <summary>
+    /// The skeleton's local transform relative to its owner (local-to-parent),
+    /// not a world/instance placement. World placement belongs to the layout
+    /// instance and is composed separately.
+    /// </summary>
     public UeTransformSnapshot? Transform { get; set; }
     public List<UePartialSkeletonSnapshot> PartialSkeletons { get; set; } = [];
 }
@@ -226,6 +231,8 @@ public sealed class UeRuntimePoseSnapshot
 
 public sealed class UeTransformSnapshot
 {
+    // Scale/Rotation/Translation, local-to-parent. Consumers must not interpret
+    // these arrays as an absolute world matrix.
     public float[] Translation { get; set; } = [];
     public float[] Rotation { get; set; } = [];
     public float[] Scale { get; set; } = [];
@@ -235,6 +242,11 @@ public sealed class UeAttachSnapshot
 {
     public int AttachmentCount { get; set; }
     public int ExecuteType { get; set; }
+    /// <summary>
+    /// Local runtime attachment offset applied at the attach point. It is a
+    /// local-to-parent transform, distinct from the owner bone pose and from
+    /// any instance/world placement.
+    /// </summary>
     public UeTransformSnapshot? OffsetTransform { get; set; }
     public int PartialSkeletonIdx { get; set; }
     public uint BoneIdx { get; set; }

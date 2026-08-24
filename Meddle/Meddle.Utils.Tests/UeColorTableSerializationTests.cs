@@ -1,7 +1,8 @@
 using System.Numerics;
 using System.Text.Json;
 using Meddle.Utils.Export.Ue;
-using Meddle.Utils.Files.Structs.Material;
+using Meddle.Formats;
+using Meddle.Formats.Files.MtrlFile;
 
 namespace Meddle.Utils.Tests;
 

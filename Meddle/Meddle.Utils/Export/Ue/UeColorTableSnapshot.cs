@@ -1,5 +1,5 @@
 using System.Text.Json.Serialization;
-using Meddle.Utils.Files.Structs.Material;
+using Meddle.Formats.Files.MtrlFile;
 
 namespace Meddle.Utils.Export.Ue;
 

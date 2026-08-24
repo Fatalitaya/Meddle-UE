@@ -11,9 +11,11 @@ using Meddle.Plugin.Models.Layout;
 using Meddle.Plugin.Models.Structs;
 using Meddle.Plugin.Services;
 using Meddle.Utils;
-using Meddle.Utils.Constants;
-using Meddle.Utils.Files;
-using Meddle.Utils.Files.Structs.Material;
+using Meddle.Formats;
+using Meddle.Formats.Constants;
+using Meddle.Formats.Files;
+using Meddle.Formats.Files.MtrlFile;
+using Meddle.Formats.Helpers;
 using Meddle.Utils.Helpers;
 using CustomizeData = Meddle.Utils.Export.CustomizeData;
 

@@ -4,7 +4,8 @@ using Meddle.Plugin.Models;
 using Meddle.Plugin.Models.Layout;
 using Meddle.Plugin.Models.Skeletons;
 using Meddle.Plugin.Utils;
-using Meddle.Utils.Constants;
+using Meddle.Utils;
+using Meddle.Formats.Constants;
 using Meddle.Utils.Export;
 using Meddle.Utils.Export.Ue;
 
@@ -460,7 +461,7 @@ public sealed class UeSnapshotBuilder
     {
         var snapshot = new UeSkeletonSnapshot
         {
-            Transform = ToTransform(skeleton.Transform)
+            Transform = ToTransform(skeleton.Transform, nodeId, "SkeletonTransform")
         };
 
         for (var i = 0; i < skeleton.PartialSkeletons.Count; i++)
@@ -543,7 +544,9 @@ public sealed class UeSnapshotBuilder
         {
             partialSnapshot.RuntimePoses.Add(new UeRuntimePoseSnapshot
             {
-                Transforms = pose.Pose.Select(ToTransform).ToList()
+                Transforms = pose.Pose
+                    .Select(x => ToTransform(x, nodeId, "RuntimePose", partialSkeletonIndex: index))
+                    .ToList()
             });
         }
 
@@ -556,7 +559,9 @@ public sealed class UeSnapshotBuilder
         {
             AttachmentCount = attach.AttachmentCount,
             ExecuteType = attach.ExecuteType,
-            OffsetTransform = attach.OffsetTransform == null ? null : ToTransform(attach.OffsetTransform),
+            OffsetTransform = attach.OffsetTransform == null
+                ? null
+                : ToTransform(attach.OffsetTransform.Value, nodeId, "AttachOffset"),
             PartialSkeletonIdx = attach.PartialSkeletonIdx,
             BoneIdx = attach.BoneIdx
         };
@@ -801,19 +806,35 @@ public sealed class UeSnapshotBuilder
         };
     }
 
-    private static UeTransformSnapshot? ToTransform(Transform? transform)
+    private UeTransformSnapshot? ToTransform(
+        Transform? transform,
+        string nodeId,
+        string role,
+        int? partialSkeletonIndex = null)
     {
-        return transform == null ? null : ToTransform(transform.Value);
+        return transform == null
+            ? null
+            : ToTransform(transform.Value, nodeId, role, partialSkeletonIndex);
     }
 
-    private static UeTransformSnapshot ToTransform(Transform transform)
+    private UeTransformSnapshot ToTransform(
+        Transform transform,
+        string nodeId,
+        string role,
+        int? partialSkeletonIndex = null)
     {
-        return new UeTransformSnapshot
-        {
-            Translation = AsFloatArray(transform.Translation),
-            Rotation = AsFloatArray(transform.Rotation),
-            Scale = AsFloatArray(transform.Scale)
-        };
+        // Canonical UE transform conversion shared with regression tests.
+        // The sanitizer receives named scale/rotation/translation slots, so the
+        // old scale<->translation argument swap is structurally impossible.
+        return UeTransformConverter.Convert(
+            scale: transform.Scale,
+            rotation: transform.Rotation,
+            translation: transform.Translation,
+            onIssue: issue => AddObservationEvent(
+                "TransformSanitized",
+                $"Transform component sanitized: role={role}, component={issue.Component}, reason={issue.Reason}, original={issue.Original}",
+                nodeId: nodeId,
+                partialSkeletonIndex: partialSkeletonIndex));
     }
 
     private static float[] AsFloatArray(Vector3 value)

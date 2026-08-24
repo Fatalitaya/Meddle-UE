@@ -17,9 +17,10 @@ using Meddle.Plugin.Models.Structs;
 using Meddle.Plugin.Services;
 using Meddle.Plugin.UI.Layout;
 using Meddle.Plugin.Utils;
-using Meddle.Utils.Constants;
-using Meddle.Utils.Files;
-using Meddle.Utils.Files.SqPack;
+using Meddle.Formats.Constants;
+using Meddle.Formats.Files;
+using Meddle.Formats.Helpers;
+using Meddle.SqPack;
 using Meddle.Utils.Helpers;
 using SharpGLTF.Transforms;
 using SkiaSharp;
@@ -37,7 +38,7 @@ public class DebugTab : ITab
     private readonly LayoutService layoutService;
     private readonly PbdHooks pbdHooks;
     private readonly INotificationManager notificationManager;
-    private readonly SqPack sqPack;
+    private readonly SqPack.SqPack sqPack;
     private readonly StainProvider stainProvider;
     private readonly IDataManager dataManager;
     private readonly ComposerFactory composerFactory;
@@ -67,7 +68,7 @@ public class DebugTab : ITab
                     PbdHooks pbdHooks,
                     INotificationManager notificationManager,
                     ITextureProvider textureProvider,
-                    SqPack sqPack,
+                    SqPack.SqPack sqPack,
                     StainProvider stainProvider,
                     IDataManager dataManager,
                     ComposerFactory composerFactory)
@@ -583,14 +584,14 @@ public class DebugTab : ITab
         for (int i = 0; i < weapons.Length; i++)
         {
             var weapon = weapons[i];
-            if (weapon.DrawObject != null)
+            if (weapon.DrawData.DrawObject != null)
             {
-                ImGui.Text($"Weapon {i} DrawObject Address: {(nint)weapon.DrawObject:X8}");
-                var weaponType = weapon.DrawObject->GetObjectType();
+                ImGui.Text($"Weapon {i} DrawObject Address: {(nint)weapon.DrawData.DrawObject:X8}");
+                var weaponType = weapon.DrawData.DrawObject->GetObjectType();
                 ImGui.Text($"Weapon {i} Object Type: {weaponType}");
                 if (weaponType == ObjectType.CharacterBase)
                 {
-                    var weaponBase = (CharacterBase*)weapon.DrawObject;
+                    var weaponBase = (CharacterBase*)weapon.DrawData.DrawObject;
                     DrawCharacterBase(weaponBase, $"Weapon {i}");
                 }
             }

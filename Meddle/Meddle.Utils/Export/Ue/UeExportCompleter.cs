@@ -81,6 +81,15 @@ public static class UeExportCompleter
                 Path.Combine(tempDirectory, "manifest.json"),
                 UeExportJson.Serialize(bundle.Manifest));
             cancellationToken.ThrowIfCancellationRequested();
+            var nonFiniteTransforms = UeSnapshotFiniteGuard.FindNonFiniteTransforms(snapshot);
+            if (nonFiniteTransforms.Count > 0)
+            {
+                throw new UeExportException(
+                    $"Snapshot contains non-finite transform values: {string.Join(", ", nonFiniteTransforms.Take(8))}" +
+                    (nonFiniteTransforms.Count > 8 ? $" (+{nonFiniteTransforms.Count - 8} more)" : string.Empty),
+                    bundle.Manifest.Observations);
+            }
+
             File.WriteAllText(
                 Path.Combine(tempDirectory, "character.json"),
                 UeExportJson.Serialize(snapshot));

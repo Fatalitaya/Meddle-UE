@@ -2,9 +2,10 @@ using System.Numerics;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Meddle.Utils.Constants;
+using Meddle.Formats.Constants;
 using Meddle.Utils.Export;
-using Meddle.Utils.Files;
+using Meddle.Formats.Files;
+using Meddle.SqPack;
 using Microsoft.Extensions.Logging;
 using SharpGLTF.Geometry;
 using SharpGLTF.Geometry.VertexTypes;
@@ -50,12 +51,12 @@ public class MeshBuilder
         
         GeometryT = GetVertexGeometryType(Mesh.Vertices);
         MaterialT = GetVertexMaterialType(Mesh);
-        SkinningT = GetVertexSkinningType(Mesh.Vertices, boneMap != null);
+        SkinningT = GetVertexSkinningType(Mesh.Vertices, HasSkinnedBoneMap(boneMap));
         VertexBuilderT = typeof(VertexBuilder<,,>).MakeGenericType(GeometryT, MaterialT, SkinningT);
         MeshBuilderT =
             typeof(MeshBuilder<,,,>).MakeGenericType(typeof(MaterialBuilder), GeometryT, MaterialT, SkinningT);
 
-        if (raceDeformer != null && BoneMap != null)
+        if (raceDeformer != null && HasSkinnedBoneMap(BoneMap))
         {
             var (from, to, deformer) = raceDeformer.Value;
             RaceDeformer = deformer;
@@ -258,6 +259,9 @@ public class MeshBuilder
         };
         return (IVertexBuilder)Activator.CreateInstance(VertexBuilderT, vertexBuilderParams)!;
     }
+
+    /// <summary>Whether a bone map is present and non-empty, i.e. the mesh actually has skinning data.</summary>
+    internal static bool HasSkinnedBoneMap(IReadOnlyList<BoneNodeBuilder>? boneMap) => boneMap is { Count: > 0 };
 
     /// <summary>Obtain the correct geometry type for a given set of vertices.</summary>
     private static Type GetVertexGeometryType(IReadOnlyList<Vertex> vertex)
@@ -496,7 +500,7 @@ public class MeshBuilder
     private IVertexSkinning CreateSkinningParamCache(Vertex vertex, IReadOnlyList<BoneNodeBuilder>? boneMap, Type type, out List<(int, float)> skinningWeights)
     {
         skinningWeights = new List<(int, float)>();
-        if (type == typeof(VertexEmpty) || boneMap == null)
+        if (type == typeof(VertexEmpty) || boneMap is not { Count: > 0 })
         {
             return new VertexEmpty();
         }

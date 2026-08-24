@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using FFXIVClientStructs.Havok.Common.Base.Math.QsTransform;
 using FFXIVClientStructs.Havok.Common.Base.Math.Quaternion;
 using FFXIVClientStructs.Havok.Common.Base.Math.Vector;
+using Meddle.Utils;
 using Microsoft.Extensions.Logging;
 using SharpGLTF.Transforms;
 using CSTransform = FFXIVClientStructs.FFXIV.Client.Graphics.Transform;
@@ -60,70 +61,31 @@ public readonly record struct Transform
 
     public AffineTransform AffineTransform => GetAffine();
 
-    private bool IsFinite(Vector3 value)
-    {
-        return IsFinite(value.X) && IsFinite(value.Y) && IsFinite(value.Z);
-    }
-    
-    private bool IsFinite(Quaternion value)
-    {
-        return IsFinite(value.X) && IsFinite(value.Y) && IsFinite(value.Z) && IsFinite(value.W);
-    }
-
-    private bool IsFinite(float value)
-    {
-        return !(float.IsNaN(value) || float.IsInfinity(value));
-    }
-    
-    private bool HasZeroOrNearZeroScale(Vector3 scale)
-    {
-        const float epsilon = 1e-6f;
-        return Math.Abs(scale.X) < epsilon || Math.Abs(scale.Y) < epsilon || Math.Abs(scale.Z) < epsilon;
-    }
-    
     private AffineTransform GetAffine()
     {
         try
         {
-            Vector3 scale;
-            if (!IsFinite(Scale))
+            var sanitized = TransformSanitizer.Sanitize(
+                scale: Scale,
+                rotation: Rotation,
+                translation: Translation);
+            foreach (var issue in sanitized.Issues)
             {
-                Plugin.Logger.LogWarning("Transform contains non-finite scale, using default: {Scale} -> {DefaultValue}", Scale, Vector3.One);
-                scale = Vector3.One;
+                Plugin.Logger.LogWarning(
+                    "Transform sanitization ({Reason}): component={Component} original={Original} fallback={Fallback}",
+                    issue.Reason,
+                    issue.Component,
+                    issue.Original,
+                    issue.Component switch
+                    {
+                        TransformSanitizeComponent.Scale => sanitized.Scale.ToString(),
+                        TransformSanitizeComponent.Translation => sanitized.Translation.ToString(),
+                        TransformSanitizeComponent.Rotation => sanitized.Rotation.ToString(),
+                        _ => "n/a"
+                    });
             }
-            else if (HasZeroOrNearZeroScale(Scale))
-            {
-                Plugin.Logger.LogWarning("Transform contains zero or near-zero scale, using default: {Scale} -> {DefaultValue}", Scale, Vector3.One);
-                scale = Vector3.One;
-            }
-            else
-            {
-                scale = Scale;
-            }
-            
-            Vector3 translation;
-            if (!IsFinite(Translation))
-            {
-                Plugin.Logger.LogWarning("Transform contains non-finite translation, using default: {Translation} -> {DefaultValue}", Translation, Vector3.Zero);
-                translation = Vector3.Zero;
-            }
-            else
-            {
-                translation = Translation;
-            }
-            
-            Quaternion rotation;
-            if (!IsFinite(Rotation))
-            {
-                Plugin.Logger.LogWarning("Transform contains non-finite rotation, using default: {Rotation} -> {DefaultValue}", Rotation, Quaternion.Identity);
-                rotation = Quaternion.Identity;
-            }
-            else
-            {
-                rotation = Rotation;
-            }
-            
-            return new AffineTransform(scale, rotation, translation);
+
+            return new AffineTransform(sanitized.Scale, sanitized.Rotation, sanitized.Translation);
         }
         catch (Exception ex)
         {

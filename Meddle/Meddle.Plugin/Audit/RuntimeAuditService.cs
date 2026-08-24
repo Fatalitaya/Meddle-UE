@@ -38,14 +38,15 @@ public sealed class RuntimeAuditService : IService, IDisposable
         IObjectTable objectTable,
         SigUtil sigUtil,
         IFramework framework,
-        PbdHooks pbdHooks)
+        PbdHooks pbdHooks,
+        PapResourceTracker papResourceTracker)
     {
         this.config = config;
         this.logger = logger;
         this.objectTable = objectTable;
         this.sigUtil = sigUtil;
         this.framework = framework;
-        capture = new RuntimeAuditCapture(pbdHooks);
+        capture = new RuntimeAuditCapture(pbdHooks, sigUtil, papResourceTracker);
     }
 
     public bool Enabled => config.AuditConfig.Enabled;

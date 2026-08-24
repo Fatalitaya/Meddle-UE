@@ -13,11 +13,11 @@ using Meddle.Plugin.Models.Skeletons;
 using Meddle.Plugin.Models.Structs;
 using Meddle.Plugin.Services;
 using Meddle.Plugin.Utils;
-using Meddle.Utils.Constants;
+using Meddle.Formats.Constants;
 using Meddle.Utils.Export;
 using Meddle.Utils.Export.Ue;
-using Meddle.Utils.Files;
-using Meddle.Utils.Files.Structs.Material;
+using Meddle.Formats.Files;
+using Meddle.Formats.Files.MtrlFile;
 using CustomizeData = Meddle.Utils.Export.CustomizeData;
 using CustomizeParameter = Meddle.Utils.Export.CustomizeParameter;
 

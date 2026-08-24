@@ -1,7 +1,7 @@
 using Meddle.Plugin.Models.Layout;
 using Meddle.Plugin.Services;
 using Meddle.Utils.Export.Ue;
-using Meddle.Utils.Files.SqPack;
+using Meddle.SqPack;
 using Microsoft.Extensions.Logging;
 
 namespace Meddle.Plugin.Export.Ue;
@@ -12,10 +12,10 @@ public sealed record UeExportResult(
 
 public sealed class UeCharacterExportService : IService
 {
-    private readonly SqPack pack;
+    private readonly SqPack.SqPack pack;
     private readonly ILogger<UeCharacterExportService> logger;
 
-    public UeCharacterExportService(SqPack pack, ILogger<UeCharacterExportService> logger)
+    public UeCharacterExportService(SqPack.SqPack pack, ILogger<UeCharacterExportService> logger)
     {
         this.pack = pack;
         this.logger = logger;

@@ -3,7 +3,7 @@ using Dalamud.Plugin.Services;
 using Meddle.Plugin.Audit;
 using Meddle.Plugin.Services;
 using Meddle.Plugin.Utils;
-using Meddle.Utils.Files.SqPack;
+using Meddle.SqPack;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -27,7 +27,7 @@ public sealed class Plugin : IDalamudPlugin
         var dLogger = service.GetLog() ?? throw new InvalidOperationException("Service log is null");
         pluginLog = new PluginSerilogWrapper(dLogger.Logger);
         pluginLog.LogDebug("Meddle Plugin initializing...");
-        Meddle.Utils.Global.Logger = pluginLog;
+        Meddle.SqPack.Global.Logger = pluginLog;
         
         try
         {
@@ -55,19 +55,19 @@ public sealed class Plugin : IDalamudPlugin
             {
                 services.Configure<ConsoleLifetimeOptions>(options => options.SuppressStatusMessages = true);
                 service.RegisterServices(services);
-                services
-                    .AddServices(pluginInterface)    
+            services
+                    .AddServices(pluginInterface)
                     .AddSingleton(config)
                     .AddUi()
-                    .AddSingleton(new SqPack(Environment.CurrentDirectory));
+                    .AddSingleton(new SqPack.SqPack(Environment.CurrentDirectory));
             });
 
             app = host.Build();
             Logger = app.Services.GetRequiredService<ILogger<Plugin>>();
             NotificationManager = app.Services.GetRequiredService<INotificationManager>();
-            Meddle.Utils.Global.Logger = app.Services.GetRequiredService<ILogger<Meddle.Utils.Global>>();
+            Meddle.SqPack.Global.Logger = app.Services.GetRequiredService<ILogger<Meddle.SqPack.Global>>();
             NativeDll.Initialize(app.Services.GetRequiredService<IDalamudPluginInterface>().AssemblyLocation.DirectoryName);
-            var pack = app.Services.GetRequiredService<SqPack>();
+            var pack = app.Services.GetRequiredService<SqPack.SqPack>();
             pack.RsfData = config.RsfConfig.GetRsfData();
             app.Services.GetRequiredService<RsfWatcher>();
             app.Services.GetRequiredService<RuntimeAuditCommands>();

@@ -1,4 +1,5 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
+using System.Numerics;
 using Meddle.Plugin.Models;
 using Meddle.Plugin.Models.Skeletons;
 using Meddle.Plugin.UI;
@@ -338,23 +339,165 @@ public static class SkeletonUtils
                Math.Abs(a.Z - b.Z) < tolerance &&
                Math.Abs(a.W - b.W) < tolerance;
     }
+
+    public static Matrix4x4 ToMatrix(AffineTransform t) =>
+        Matrix4x4.CreateScale(t.Scale) *
+        Matrix4x4.CreateFromQuaternion(t.Rotation) *
+        Matrix4x4.CreateTranslation(t.Translation);
+
+    /// <summary>
+    /// Production adapter over
+    /// <see cref="SkeletonTopologyMath.ComputeBoneToRoot"/>. Computes the
+    /// transform that maps <paramref name="bone"/>'s local space into the owner
+    /// skeleton root's local space (bone-local -&gt; owner-root space) using ONLY
+    /// the owner skeleton's current pose, and EXCLUDING the owner root's own
+    /// local transform (<c>ComputeBoneToRoot(rootBone) == Identity</c>).
+    ///
+    /// Contract:
+    /// <list type="bullet">
+    /// <item><paramref name="bone"/> must belong to
+    /// <paramref name="ownerBones"/> (reference identity boundary).</item>
+    /// <item>Traversal stops at the first ancestor outside the owner set;
+    /// foreign nodes are never included, never read for their LocalMatrix, and
+    /// never resolved through this skeleton's pose data.</item>
+    /// <item>The result is owner-skeleton pose only and excludes the root's
+    /// own local transform. Combine it with the owner root's ACTUAL world
+    /// matrix (see <see cref="ComputeRootWorld"/>) through
+    /// <see cref="AttachmentTransformPolicy.ComposeAttachedRootWorld"/>.</item>
+    /// </list>
+    /// </summary>
+    public static Matrix4x4 ComputeBoneToRoot(
+        BoneNodeBuilder bone,
+        ParsedSkeleton ownerSkeleton,
+        IReadOnlySet<BoneNodeBuilder> ownerBones)
+    {
+        return SkeletonTopologyMath.ComputeBoneToRoot(
+            bone,
+            ownerBones,
+            current => ResolvePoseOrNull(ownerSkeleton, current));
+    }
+
+    /// <summary>
+    /// Production adapter over
+    /// <see cref="SkeletonTopologyMath.ComputeRootWorld"/>. Computes the actual
+    /// world matrix of the owner skeleton root node:
+    /// <c>RootWorld = rootLocal * rootParentWorld</c>, where <c>rootLocal</c>
+    /// is the root's current pose (including skeleton-native root scale) and
+    /// <c>rootParentWorld</c> is the instance/world layer for a top-level
+    /// character or the attach point world of a parent. This is the ONLY value
+    /// handed to descendants as their owner root world.
+    /// </summary>
+    public static Matrix4x4 ComputeRootWorld(
+        BoneNodeBuilder rootBone,
+        ParsedSkeleton ownerSkeleton,
+        IReadOnlySet<BoneNodeBuilder> ownerBones,
+        Matrix4x4 rootParentWorld)
+    {
+        return SkeletonTopologyMath.ComputeRootWorld(
+            rootBone,
+            ownerBones,
+            current => ResolvePoseOrNull(ownerSkeleton, current),
+            rootParentWorld);
+    }
+
+    private static Matrix4x4? ResolvePoseOrNull(ParsedSkeleton ownerSkeleton, BoneNodeBuilder bone)
+    {
+        return GetBoneTransform(ownerSkeleton, bone) is { } poseTransform
+            ? ToMatrix(poseTransform)
+            : (Matrix4x4?)null;
+    }
     
     public static AffineTransform? GetBoneTransform(ParsedSkeleton skeleton, BoneNodeBuilder bone)
     {
+        if (bone.PartialSkeletonIndex < 0 || bone.PartialSkeletonIndex >= skeleton.PartialSkeletons.Count)
+        {
+            return null;
+        }
+
         var partial = skeleton.PartialSkeletons[bone.PartialSkeletonIndex];
         if (partial.Poses.Count == 0) return null;
-            
+
+        if (bone.BoneIndex < 0 || bone.BoneIndex >= partial.Poses[0].Pose.Count)
+        {
+            return null;
+        }
+
         var pose = partial.Poses[0];
         var boneTransform = pose.Pose[bone.BoneIndex].AffineTransform;
-        
-        // Apply root scaling if this is a root bone
-        if (bone.Parent is not BoneNodeBuilder)
+
+        // Root scale comes from the skeleton-native topology, never from the
+        // mutable export hierarchy (a reparented player root must still be
+        // recognized as the player skeleton root).
+        if (IsSkeletonRoot(partial, bone))
         {
             var scale = boneTransform.Scale * skeleton.Transform.Scale;
             return new AffineTransform(scale, boneTransform.Rotation, boneTransform.Translation);
         }
         
         return boneTransform;
+    }
+
+    private static bool IsSkeletonRoot(ParsedPartialSkeleton partial, BoneNodeBuilder bone)
+    {
+        var hk = partial.HkSkeleton;
+        if (hk == null || bone.BoneIndex < 0 || bone.BoneIndex >= hk.BoneParents.Count)
+        {
+            return false;
+        }
+
+        return TransformMath.IsSkeletonRootByParentIndex(hk.BoneParents[bone.BoneIndex]);
+    }
+
+    public static bool TryResolveAttachPoint(
+        ParsedSkeleton ownerSkeleton,
+        IReadOnlyList<BoneNodeBuilder> ownerBones,
+        ParsedAttach attach,
+        out BoneNodeBuilder? attachBone,
+        out string? attachBoneName,
+        out string? reason)
+    {
+        attachBone = null;
+        attachBoneName = null;
+
+        if (attach.PartialSkeletonIdx < 0 || attach.PartialSkeletonIdx >= ownerSkeleton.PartialSkeletons.Count)
+        {
+            reason = "partial skeleton index out of range";
+            return false;
+        }
+
+        var partial = ownerSkeleton.PartialSkeletons[attach.PartialSkeletonIdx];
+        var hk = partial.HkSkeleton;
+        if (hk == null)
+        {
+            reason = "owner partial skeleton has no HkSkeleton";
+            return false;
+        }
+
+        if (attach.BoneIdx < 0 || attach.BoneIdx >= hk.BoneNames.Count)
+        {
+            reason = "bone index out of range";
+            return false;
+        }
+
+        var boneName = hk.BoneNames[(int)attach.BoneIdx];
+        if (string.IsNullOrEmpty(boneName))
+        {
+            reason = "attach bone name is null or empty";
+            return false;
+        }
+
+        attachBone = ownerBones.FirstOrDefault(
+            x => x.BoneName.Equals(boneName, StringComparison.Ordinal));
+        if (attachBone == null)
+        {
+            reason = $"attach bone {boneName} was not found in the owner bone map";
+            attachBoneName = boneName;
+            return false;
+        }
+
+        attachBoneName = boneName;
+        reason = null;
+        return true;
     }
     
     public static float TotalSeconds(DateTime time, DateTime startTime)

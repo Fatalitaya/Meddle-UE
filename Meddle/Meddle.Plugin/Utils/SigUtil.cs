@@ -17,10 +17,15 @@ namespace Meddle.Plugin.Utils;
 
 public unsafe class SigUtil : IService, IDisposable
 {
+    private const string AttachVTableSignature =
+        "48 8D 05 ?? ?? ?? ?? 48 89 03 48 89 6B 58 48 89 6B 60 89 6B 68 48 89 6B 70";
+
     //public static ISigScanner? SigScanner { get; set; } = null!;
     private readonly ISigScanner sigScanner;
     private readonly ILogger<SigUtil> logger;
     private readonly IGameInteropProvider gameInterop;
+    private nint attachVTable;
+    private bool attachVTableResolved;
     
     public SigUtil(ISigScanner sigScanner, ILogger<SigUtil> logger, IGameInteropProvider gameInterop)
     {
@@ -126,5 +131,39 @@ public unsafe class SigUtil : IService, IDisposable
         }
 
         throw new Exception($"Failed to find signature {sig} at offset {offset}");
+    }
+
+    /// <summary>
+    /// Resolves the optional Attach vtable capability. Failure to resolve the
+    /// signature must never take the plugin down; it only means linked attach
+    /// traversal is unavailable.
+    /// </summary>
+    public bool TryGetAttachVTable(out nint address)
+    {
+        if (attachVTableResolved)
+        {
+            address = attachVTable;
+            return address != 0;
+        }
+
+        attachVTableResolved = true;
+        address = 0;
+        try
+        {
+            if (!sigScanner.TryGetStaticAddressFromSig(AttachVTableSignature, out address, 3))
+            {
+                logger.LogDebug("Attach vtable signature not found");
+                return false;
+            }
+
+            attachVTable = address;
+            return address != 0;
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "Attach vtable signature resolution failed");
+            attachVTable = 0;
+            return false;
+        }
     }
 }

@@ -1,6 +1,6 @@
 using Meddle.Plugin.Utils;
 using Meddle.Utils.Audit;
-using Meddle.Utils.Files;
+using Meddle.Formats.Files;
 using CSMaterial = FFXIVClientStructs.FFXIV.Client.Graphics.Render.Material;
 using CSModel = FFXIVClientStructs.FFXIV.Client.Graphics.Render.Model;
 

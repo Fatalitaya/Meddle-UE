@@ -10,7 +10,7 @@ using Meddle.Plugin.Models;
 using Meddle.Plugin.Models.Composer;
 using Meddle.Plugin.Models.Skeletons;
 using Meddle.Plugin.UI.Layout;
-using Meddle.Utils.Files.Structs.Material;
+using Meddle.Formats.Files.MtrlFile;
 using SharpGLTF.Transforms;
 using CustomizeData = Meddle.Utils.Export.CustomizeData;
 using CustomizeParameter = Meddle.Utils.Export.CustomizeParameter;
@@ -463,7 +463,7 @@ public static class UiUtil
         var weaponData = drawDataContainer.WeaponData;
         foreach (var weapon in weaponData)
         {
-            var weaponDrawObject = weapon.DrawObject;
+            var weaponDrawObject = weapon.DrawData.DrawObject;
             if (weaponDrawObject == null)
             {
                 continue;

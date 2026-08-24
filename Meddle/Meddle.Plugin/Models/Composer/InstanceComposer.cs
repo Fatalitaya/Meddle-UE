@@ -8,8 +8,10 @@ using Meddle.Plugin.UI.Layout;
 using Meddle.Plugin.Utils;
 using Meddle.Utils;
 using Meddle.Utils.Export;
-using Meddle.Utils.Files;
-using Meddle.Utils.Files.SqPack;
+using Meddle.Formats.Files;
+using Meddle.Formats.Files.MdlFile;
+using Meddle.Formats.Helpers;
+using Meddle.SqPack;
 using Meddle.Utils.Helpers;
 using Microsoft.Extensions.Logging;
 using SharpGLTF.Geometry;
@@ -43,7 +45,7 @@ public class ExportProgress
 
 public class InstanceComposer
 {
-    private readonly SqPack pack;
+    private readonly SqPack.SqPack pack;
     private readonly Configuration.ExportConfiguration exportConfig;
     private readonly string outDir;
     private readonly string cacheDir;
@@ -51,7 +53,7 @@ public class InstanceComposer
     private readonly ComposerCache composerCache;
     
     public InstanceComposer(
-        SqPack pack,
+        SqPack.SqPack pack,
         Configuration.ExportConfiguration exportConfig,
         string outDir,
         CancellationToken cancellationToken)
@@ -408,14 +410,28 @@ public class InstanceComposer
         
         try
         {
-            characterComposer.Compose(instance.CharacterInfo, scene, root, characterProgress);
             var cTransform = instance.Transform.AffineTransform;
+
+            if (instance.CharacterInfo.Attach.ExecuteType != 0)
+            {
+                var rootAttachInfo = instance.CharacterInfo.Attaches.FirstOrDefault(x => x.Attach.ExecuteType == 0);
+                if (rootAttachInfo != null)
+                {
+                    cTransform = rootAttachInfo.Skeleton.Transform.AffineTransform;
+                }
+            }
+
             if (exportConfig.PoseMode != SkeletonUtils.PoseMode.None)
             {
                 // set scale to 1 since exporting with pose should already set this on the root bone.
                 cTransform = cTransform.WithScale(Vector3.One);
             }
-            root.SetLocalTransform(cTransform, true);
+
+            // The composer owns applying the instance/world layer to the root
+            // exactly once (see CharacterComposer.Compose). Pass it through so
+            // attached children resolve their owner-bone world matrices against
+            // the same layer, without a second application here.
+            characterComposer.Compose(instance.CharacterInfo, scene, root, characterProgress, cTransform.Matrix);
         } 
         finally
         {

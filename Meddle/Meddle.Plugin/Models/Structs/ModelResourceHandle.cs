@@ -1,7 +1,7 @@
 ﻿using System.Runtime.InteropServices;
 using FFXIVClientStructs.Interop;
 using Meddle.Plugin.Utils;
-using Meddle.Utils.Files.Structs.Model;
+using Meddle.Formats.Files.MdlFile;
 
 namespace Meddle.Plugin.Models.Structs;
 

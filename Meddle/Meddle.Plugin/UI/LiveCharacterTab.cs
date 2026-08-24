@@ -21,11 +21,12 @@ using Meddle.Plugin.UI.Layout;
 using Meddle.Plugin.UI.Windows;
 using Meddle.Plugin.Utils;
 using Meddle.Utils;
-using Meddle.Utils.Constants;
+using Meddle.Formats.Constants;
 using Meddle.Utils.Export;
 using Meddle.Utils.Export.Ue;
-using Meddle.Utils.Files;
-using Meddle.Utils.Files.SqPack;
+using Meddle.Formats.Files;
+using Meddle.Formats.Helpers;
+using Meddle.SqPack;
 using Meddle.Utils.Helpers;
 using Microsoft.Extensions.Logging;
 using SharpGLTF.Scenes;
@@ -53,7 +54,7 @@ public unsafe class LiveCharacterTab : ITab
     };
 
     private readonly ILogger<LiveCharacterTab> log;
-    private readonly SqPack pack;
+    private readonly SqPack.SqPack pack;
     private readonly PbdHooks pbd;
     private readonly Dictionary<nint, bool> selectedModels = new();
     private readonly TextureCache textureCache;
@@ -74,7 +75,7 @@ public unsafe class LiveCharacterTab : ITab
         TextureCache textureCache,
         ResolverService resolverService,
         StainProvider stainProvider,
-        SqPack pack,
+        SqPack.SqPack pack,
         PbdHooks pbd,
         CommonUi commonUi,
         SigUtil sigUtil,
@@ -209,11 +210,11 @@ public unsafe class LiveCharacterTab : ITab
             for (var weaponIdx = 0; weaponIdx < character->DrawData.WeaponData.Length; weaponIdx++)
             {
                 var weaponData = character->DrawData.WeaponData[weaponIdx];
-                if (weaponData.DrawObject != null && weaponData.IsHidden == false)
+                if (weaponData.DrawData.DrawObject != null)
                 {
                     ImGui.Separator();
                     ImGui.Text($"Weapon {weaponIdx}");
-                    DrawDrawObject(weaponData.DrawObject, $"{character->NameString.GetCharacterName(config, character->ObjectKind)}_Weapon");
+                    DrawDrawObject(weaponData.DrawData.DrawObject, $"{character->NameString.GetCharacterName(config, character->ObjectKind)}_Weapon");
                 }
             }
 

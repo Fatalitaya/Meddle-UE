@@ -8,6 +8,7 @@ using FFXIVClientStructs.FFXIV.Client.System.Resource.Handle;
 using FFXIVClientStructs.Interop;
 using Meddle.Plugin.Models;
 using Meddle.Utils;
+using Meddle.Formats.Helpers;
 using Meddle.Utils.Helpers;
 
 namespace Meddle.Plugin.Utils;

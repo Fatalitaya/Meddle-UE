@@ -16,6 +16,14 @@
     </ItemGroup>
 
     <ItemGroup>
+        <InternalsVisibleTo Include="Meddle.Utils.Tests" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Meddle.Formats\Meddle.Formats.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
         <Reference Include="OtterTex">
             <HintPath>Lib\OtterTex.dll</HintPath>
         </Reference>
@@ -26,6 +34,5 @@
         <PackageReference Include="SharpGLTF.Core" Version="1.0.5" />
         <PackageReference Include="SharpGLTF.Toolkit" Version="1.0.5" />
         <PackageReference Include="SkiaSharp" Version="3.119.0" />
-        <PackageReference Include="System.IO.Hashing" Version="10.0.1" />
     </ItemGroup>
 </Project>

@@ -1,8 +1,10 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Serialization;
-using Meddle.Utils.Constants;
+using Meddle.Formats.Constants;
 using Meddle.Utils.Export;
+using Meddle.Formats.Helpers;
 using Meddle.Utils.Helpers;
+using Meddle.SqPack;
 using Microsoft.Extensions.Logging;
 using SharpGLTF.Geometry;
 using SharpGLTF.Materials;
@@ -61,16 +63,9 @@ public static class ModelBuilder
                 material = materials[mesh.MaterialIdx];
             }
             
-            if (mesh.BoneTable != null && boneMap != null)
+            if (mesh.BoneTable != null && boneMap is { Count: > 0 })
             {
                 meshBuilder = new MeshBuilder(mesh, boneMap, material, raceDeformer, options);
-            }
-            else if (mesh.BoneTable != null && boneMap == null)
-            {
-                // Global.Logger.LogWarning("[{Path}] Mesh {MeshIdx} has bone table but no bone map was provided",
-                //                          model.HandlePath,
-                //                          mesh.MeshIdx);
-                meshBuilder = new MeshBuilder(mesh, null, material, raceDeformer, options);
             }
             else
             {

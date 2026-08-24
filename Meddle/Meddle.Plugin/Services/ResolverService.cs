@@ -5,8 +5,11 @@ using FFXIVClientStructs.FFXIV.Client.Graphics.Scene;
 using FFXIVClientStructs.Interop;
 using Meddle.Plugin.Models.Layout;
 using Meddle.Plugin.Utils;
-using Meddle.Utils.Files;
-using Meddle.Utils.Files.SqPack;
+using Meddle.Formats.Files;
+using Meddle.Formats.Files.MdlFile;
+using Meddle.Formats.Files.MtrlFile;
+using Meddle.Formats.Helpers;
+using Meddle.SqPack;
 using Meddle.Utils.Helpers;
 using Microsoft.Extensions.Logging;
 
@@ -16,14 +19,14 @@ public class ResolverService : IService
 {
     private readonly ILogger<ResolverService> logger;
     private readonly LayoutService layoutService;
-    private readonly SqPack pack;
+    private readonly SqPack.SqPack pack;
     private readonly IFramework framework;
     private readonly PbdHooks pbdHooks;
 
     public ResolverService(
         ILogger<ResolverService> logger, 
         LayoutService layoutService,
-        SqPack pack,
+        SqPack.SqPack pack,
         IFramework framework,
         PbdHooks pbdHooks)
     {
@@ -229,7 +232,7 @@ public class ResolverService : IService
 
         foreach (var weapon in character->DrawData.WeaponData)
         {
-            var weaponInfo = ParseMaterialUtil.ParseDrawObject(weapon.DrawObject, pbdHooks);
+            var weaponInfo = ParseMaterialUtil.ParseDrawObject(weapon.DrawData.DrawObject, pbdHooks);
             if (weaponInfo != null)
             {
                 attaches.Add(weaponInfo);

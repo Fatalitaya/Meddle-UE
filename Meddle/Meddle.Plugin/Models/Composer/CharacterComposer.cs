@@ -5,10 +5,10 @@ using Meddle.Plugin.Models.Layout;
 using Meddle.Plugin.Models.Skeletons;
 using Meddle.Plugin.Utils;
 using Meddle.Utils;
-using Meddle.Utils.Constants;
+using Meddle.Formats.Constants;
 using Meddle.Utils.Export;
 using Meddle.Utils.Export.Ue;
-using Meddle.Utils.Files.SqPack;
+using Meddle.SqPack;
 using Microsoft.Extensions.Logging;
 using SharpGLTF.Materials;
 using SharpGLTF.Scenes;
@@ -17,7 +17,38 @@ namespace Meddle.Plugin.Models.Composer;
 public class CharacterComposer
 {
     public record SkinningContext(List<BoneNodeBuilder> Bones, BoneNodeBuilder? RootBone, Matrix4x4 Transform);
-    
+
+    private sealed record ComposeContext(SceneBuilder Scene, NodeBuilder Root, Matrix4x4 InstanceWorldTransform);
+
+    /// <summary>
+    /// Attachment context for a child character (weapon/ornament). The owner's
+    /// ACTUAL skeleton-root world (<see cref="OwnerRootWorld"/>, including the
+    /// owner root's own local transform) is propagated explicitly so the child
+    /// never re-derives it by walking scene parents through foreign skeletons.
+    /// <c>OwnerRootWorld</c> is the owner skeleton root node's actual world
+    /// matrix (RootWorld from the owner compose result), never an attach-point
+    /// world: descendants compose as
+    /// <c>childRootLocal * attachBoneToRoot * OwnerRootWorld</c>.
+    /// </summary>
+    private readonly record struct AttachContext(
+        ParsedCharacterInfo Owner,
+        IReadOnlyList<BoneNodeBuilder> OwnerBones,
+        Matrix4x4 OwnerRootWorld,
+        ParsedAttach Attach);
+
+    /// <summary>
+    /// Result of composing one character (or a root attach / weapon) with full
+    /// world provenance. <see cref="RootWorld"/> is the skeleton root node's
+    /// ACTUAL world matrix (mesh pose matrix): it includes the root's own local
+    /// transform (current pose or child-root local/attach offset), the parent
+    /// attachment placement, and the instance/world layer — each exactly once.
+    /// It is the ONLY value handed to descendants as their owner root world.
+    /// </summary>
+    private sealed record CharacterComposeResult(
+        IReadOnlyList<BoneNodeBuilder> Bones,
+        BoneNodeBuilder RootBone,
+        Matrix4x4 RootWorld);
+
     private readonly ComposerCache composerCache;
     private readonly Configuration.ExportConfiguration exportConfig;
     private readonly CancellationToken cancellationToken;
@@ -30,7 +61,7 @@ public class CharacterComposer
         this.cancellationToken = cancellationToken;
     }
     
-    public CharacterComposer(SqPack pack, Configuration.ExportConfiguration exportConfig, string outDir, CancellationToken cancellationToken)
+    public CharacterComposer(SqPack.SqPack pack, Configuration.ExportConfiguration exportConfig, string outDir, CancellationToken cancellationToken)
     {
         this.exportConfig = exportConfig;
         this.cancellationToken = cancellationToken;
@@ -217,13 +248,37 @@ public class CharacterComposer
     private int attachSuffix;
     private readonly object attachLock = new();
 
-    private bool HandleAttach((ParsedCharacterInfo Owner, List<BoneNodeBuilder> OwnerBones, ParsedAttach Attach) attachData, SceneBuilder scene, BoneNodeBuilder rootBone, ref Matrix4x4 transform)
+    /// <summary>
+    /// Parents a child skeleton root at the owner attach point, applies the
+    /// attach offset exactly once (into <c>rootBone.LocalMatrix</c>), and
+    /// sets <paramref name="transform"/> to the child's ACTUAL RootWorld:
+    /// <c>childRootLocal * attachBoneToRoot * ownerRootWorld</c>. That value is
+    /// the child's mesh pose matrix AND the only value handed to the child's
+    /// own descendants as their owner root world.
+    /// </summary>
+    private void HandleAttach(ComposeContext ctx, AttachContext attachData, BoneNodeBuilder rootBone, ref Matrix4x4 transform)
     {
-        bool rootParented;
         var attach = attachData.Attach;
         if (rootBone == null) throw new InvalidOperationException("Root bone not found");
-        var attachName = attachData.Owner.Skeleton.PartialSkeletons[attach.PartialSkeletonIdx]
-                                   .HkSkeleton!.BoneNames[(int)attach.BoneIdx];
+
+        if (!SkeletonUtils.TryResolveAttachPoint(
+                attachData.Owner.Skeleton,
+                attachData.OwnerBones,
+                attach,
+                out var attachPointBone,
+                out var attachName,
+                out var resolveReason))
+        {
+            Plugin.Logger.LogWarning(
+                "Attach bone could not be resolved for owner {Owner}: {Reason}; attaching child at the scene root as a documented fallback.",
+                attachData.Owner,
+                resolveReason);
+            ctx.Root.AddNode(rootBone);
+            transform = AttachmentTransformPolicy.ComposeAttachedRootWorld(
+                rootBone.LocalMatrix, Matrix4x4.Identity, ctx.Root.LocalMatrix);
+            return;
+        }
+
         Plugin.Logger.LogInformation("Attaching {AttachName} to {RootBone}", attachName, rootBone.BoneName);
         lock (attachLock)
         {
@@ -244,125 +299,171 @@ public class CharacterComposer
             }
         }
 
-        var attachPointBone = attachData.OwnerBones.FirstOrDefault(
-                x => x.BoneName.Equals(attachName, StringComparison.Ordinal));
-        if (attachPointBone == null)
-        {
-            scene.AddNode(rootBone);
-            rootParented = true;
-        }
-        else
-        {
-            attachPointBone.AddNode(rootBone);
-            rootParented = true;
-        }
+        attachPointBone!.AddNode(rootBone);
 
-        NodeBuilder? c = rootBone;
-        while (c != null)
-        {
-            transform *= c.LocalMatrix;
-            c = c.Parent;
-        }
-        
-        return rootParented;
+        // Owner-skeleton-only chain from the attach point to the owner root
+        // local space, using the owner's CURRENT pose and EXCLUDING the owner
+        // root's own local transform (which already lives in
+        // attachData.OwnerRootWorld). The owner's actual RootWorld was
+        // resolved when the owner composed and is propagated explicitly; no
+        // scene-parent rescan through foreign skeletons happens here.
+        var ownerBoneSet = new HashSet<BoneNodeBuilder>(attachData.OwnerBones);
+        var boneToRoot = SkeletonUtils.ComputeBoneToRoot(
+            attachPointBone, attachData.Owner.Skeleton, ownerBoneSet);
+
+        // Attach.OffsetTransform is applied exactly once, into
+        // rootBone.LocalMatrix above. ChildRootWorld (this child's RootWorld)
+        // = rootBone.LocalMatrix * boneToRoot * OwnerRootWorld (row-vector).
+        transform = AttachmentTransformPolicy.ComposeAttachedRootWorld(
+            rootBone.LocalMatrix, boneToRoot, attachData.OwnerRootWorld);
     }
 
+    /// <summary>
+    /// Handles a root-attached (mounted) character: composes the mount as a
+    /// top-level character, attaches this character's skeleton root at the
+    /// mount's attach point using the mount's CURRENT pose, and sets
+    /// <paramref name="transform"/> to this character's ACTUAL RootWorld
+    /// (<c>childRootLocal * mountAttachPointWorld</c>), which descendants
+    /// inherit directly. Returns <c>false</c> when no root attach exists or the
+    /// mount failed to compose (the caller keeps the documented scene-root
+    /// fallback).
+    /// </summary>
     private bool HandleRootAttach(
+        ComposeContext ctx,
         ParsedCharacterInfo characterInfo,
-        SceneBuilder scene,
-        NodeBuilder root,
         ref BoneNodeBuilder rootBone,
         ref Matrix4x4 transform,
         ExportProgress rootProgress)
     {
-        bool rootParented = false;
         var rootAttach = characterInfo.Attaches.FirstOrDefault(x => x.Attach.ExecuteType == 0);
         if (rootAttach == null)
         {
             Plugin.Logger.LogWarning("Root attach not found");
+            return false;
         }
-        else
+
+        Plugin.Logger.LogWarning("Root attach found");
+        // handle root first, then attach this to the root
+        var rootAttachProgress = new ExportProgress(rootAttach.Models.Count, "Root attach");
+        rootProgress.Children.Add(rootAttachProgress);
+        try
         {
-            Plugin.Logger.LogWarning("Root attach found");
-            // handle root first, then attach this to the root
-            var rootAttachProgress = new ExportProgress(rootAttach.Models.Count, "Root attach");
-            rootProgress.Children.Add(rootAttachProgress);
-            try
+            var rootAttachData = ComposeCharacterInfo(ctx, rootAttach, null, rootAttachProgress);
+            if (rootAttachData == null)
             {
-                var rootAttachData = ComposeCharacterInfo(rootAttach, null, scene, root, rootAttachProgress);
-                if (rootAttachData != null)
-                {
-                    var attachName = rootAttach.Skeleton.PartialSkeletons[characterInfo.Attach.PartialSkeletonIdx]
-                                               .HkSkeleton!
-                                               .BoneNames[(int)characterInfo.Attach.BoneIdx];
-                    if (rootBone == null) throw new InvalidOperationException("Root bone not found");
-                    var attachRoot = rootAttachData.Value.root;
-                    lock (attachLock)
-                    {
-                        Interlocked.Increment(ref attachSuffix);
-                        attachRoot.SetSuffixRecursively(attachSuffix);
-                    }
-
-                    if (rootAttach.Attach.OffsetTransform is { } ct)
-                    {
-                        attachRoot.WithLocalScale(ct.Scale);
-                        attachRoot.WithLocalRotation(ct.Rotation);
-                        attachRoot.WithLocalTranslation(ct.Translation);
-                        if (attachRoot.AnimationTracksNames.Contains("pose"))
-                        {
-                            attachRoot.UseScale().UseTrackBuilder("pose").WithPoint(0, ct.Scale);
-                            attachRoot.UseRotation().UseTrackBuilder("pose").WithPoint(0, ct.Rotation);
-                            attachRoot.UseTranslation().UseTrackBuilder("pose").WithPoint(0, ct.Translation);
-                        }
-                    }
-
-                    var attachPointBone =
-                        rootAttachData.Value.bones.FirstOrDefault(
-                            x => x.BoneName.Equals(attachName, StringComparison.Ordinal));
-                    if (attachPointBone == null)
-                    {
-                        scene.AddNode(rootBone);
-                        rootParented = true;
-                    }
-                    else
-                    {
-                        attachPointBone.AddNode(rootBone);
-                        rootParented = true;
-                    }
-
-                    NodeBuilder? c = rootBone;
-                    while (c != null)
-                    {
-                        transform *= c.LocalMatrix;
-                        c = c.Parent;
-                    }
-
-                    rootBone = attachRoot;
-                }
-            } 
-            finally
-            {
-                rootAttachProgress.IsComplete = true;
+                return false;
             }
+
+            if (rootBone == null) throw new InvalidOperationException("Root bone not found");
+            var attachRoot = rootAttachData.RootBone;
+            lock (attachLock)
+            {
+                Interlocked.Increment(ref attachSuffix);
+                attachRoot.SetSuffixRecursively(attachSuffix);
+            }
+
+            if (rootAttach.Attach.OffsetTransform is { } ct)
+            {
+                attachRoot.WithLocalScale(ct.Scale);
+                attachRoot.WithLocalRotation(ct.Rotation);
+                attachRoot.WithLocalTranslation(ct.Translation);
+                if (attachRoot.AnimationTracksNames.Contains("pose"))
+                {
+                    attachRoot.UseScale().UseTrackBuilder("pose").WithPoint(0, ct.Scale);
+                    attachRoot.UseRotation().UseTrackBuilder("pose").WithPoint(0, ct.Rotation);
+                    attachRoot.UseTranslation().UseTrackBuilder("pose").WithPoint(0, ct.Translation);
+                }
+            }
+
+            // This character is attached at the mount's attach point. The
+            // mount's actual RootWorld was already computed when the mount
+            // composed; the mount-bone chain uses the mount's CURRENT pose
+            // strictly inside the mount skeleton (never foreign LocalMatrix)
+            // and excludes the mount root's own local transform.
+            var mountBoneSet = new HashSet<BoneNodeBuilder>(rootAttachData.Bones);
+            Matrix4x4 attachPointWorld;
+            if (!SkeletonUtils.TryResolveAttachPoint(
+                    rootAttach.Skeleton,
+                    rootAttachData.Bones,
+                    characterInfo.Attach,
+                    out var attachPointBone,
+                    out _,
+                    out var resolveReason))
+            {
+                Plugin.Logger.LogWarning(
+                    "Root attach bone could not be resolved: {Reason}; attaching at the scene root as a documented fallback.",
+                    resolveReason);
+                ctx.Root.AddNode(rootBone);
+                attachPointWorld = ctx.Root.LocalMatrix;
+            }
+            else
+            {
+                attachPointBone!.AddNode(rootBone);
+                var boneToRoot = SkeletonUtils.ComputeBoneToRoot(
+                    attachPointBone, rootAttach.Skeleton, mountBoneSet);
+                attachPointWorld = AttachmentTransformPolicy.ComposeAttachedRootWorld(
+                    Matrix4x4.Identity, boneToRoot, rootAttachData.RootWorld);
+            }
+
+            // PlayerRootWorld = PlayerRootLocal (incl. any root placement)
+            // * mount attach point world.
+            transform = AttachmentTransformPolicy.ComposeAttachedRootWorld(
+                rootBone.LocalMatrix, Matrix4x4.Identity, attachPointWorld);
+            rootBone = attachRoot;
+            return true;
         }
-        
-        return rootParented;
+        finally
+        {
+            rootAttachProgress.IsComplete = true;
+        }
     }
     
-    public (List<BoneNodeBuilder> bones, BoneNodeBuilder root)? Compose(ParsedCharacterInfo characterInfo, SceneBuilder scene, NodeBuilder root, ExportProgress progress)
+    public (List<BoneNodeBuilder> bones, BoneNodeBuilder root)? Compose(
+        ParsedCharacterInfo characterInfo,
+        SceneBuilder scene,
+        NodeBuilder root,
+        ExportProgress progress,
+        Matrix4x4? instanceWorldTransform = null)
     {
+        var worldTransform = instanceWorldTransform ?? Matrix4x4.Identity;
         composerCache.SaveArrayTextures();
+        // Contract: the instance/world layer is represented exactly once — as
+        // the scene root's local matrix AND inside the top-level character's
+        // RootWorld (rootLocal * instance). Both carry the same matrix, so the
+        // mesh pose and the armature share one coordinate space and the layer
+        // can never be applied a second time inside RootWorld or descendant
+        // attachments.
+        root.LocalMatrix = worldTransform;
         root.Extras = JsonNode.Parse(JsonSerializer.Serialize(new Dictionary<string, string>
         {
             {"raceCode", ((int)characterInfo.GenderRace).ToString()},
             {"raceCodeName", characterInfo.GenderRace.ToString() },
             { "nodeType", "CharacterRoot" }
         }));
-        return ComposeCharacterInfo(characterInfo, null, scene, root, progress);
+        var ctx = new ComposeContext(scene, root, worldTransform);
+        var result = ComposeCharacterInfo(ctx, characterInfo, null, progress);
+        return result == null ? null : (result.Bones.ToList(), result.RootBone);
     }
     
-    private (List<BoneNodeBuilder> bones, BoneNodeBuilder root)? ComposeCharacterInfo(ParsedCharacterInfo characterInfo, (ParsedCharacterInfo Owner, List<BoneNodeBuilder> OwnerBones, ParsedAttach Attach)? attachData, SceneBuilder scene, NodeBuilder root, ExportProgress rootProgress)
+    private CharacterComposeResult? ComposeCharacterInfo(
+        ComposeContext ctx,
+        ParsedCharacterInfo characterInfo,
+        AttachContext? attachData,
+        ExportProgress rootProgress)
     {
+        // Cache the runtime-observed partial skeleton identities (.sklb
+        // HandlePaths) as optional raw resource evidence. This is a cache-only
+        // side channel: it never parses the SKLB and never alters skeleton or
+        // transform semantics. "Observed path / cached resource" — not
+        // "verified runtime skeleton".
+        foreach (var partial in characterInfo.Skeleton.PartialSkeletons)
+        {
+            if (!string.IsNullOrWhiteSpace(partial.HandlePath))
+            {
+                composerCache.CacheSklb(partial.HandlePath);
+            }
+        }
+
         List<BoneNodeBuilder> bones;
         BoneNodeBuilder? rootBone;
         try
@@ -380,16 +481,25 @@ public class CharacterComposer
             return null;
         }
 
+        var ownerBoneSet = new HashSet<BoneNodeBuilder>(bones);
+        // RootWorld: the skeleton root node's ACTUAL world matrix, including
+        // the root's own local transform (current pose / child-root local with
+        // attach offset) and the root-parent world (instance layer, or the
+        // attach point world computed by HandleAttach / HandleRootAttach) —
+        // each layer exactly once. This same value is the mesh pose matrix and
+        // is handed directly to descendants as their owner root world.
+        Matrix4x4 transform = SkeletonUtils.ComputeRootWorld(
+            rootBone,
+            characterInfo.Skeleton,
+            ownerBoneSet,
+            ctx.InstanceWorldTransform);
         bool rootParented = false;
-        Matrix4x4 transform = Matrix4x4.Identity;
         if (attachData != null)
         {
             try
             {
-                if (HandleAttach(attachData.Value, scene, rootBone, ref transform))
-                {
-                    rootParented = true;
-                }
+                HandleAttach(ctx, attachData.Value, rootBone, ref transform);
+                rootParented = true;
             }
             catch (Exception e)
             {
@@ -404,7 +514,7 @@ public class CharacterComposer
         {
             try
             {
-                if (HandleRootAttach(characterInfo, scene, root, ref rootBone, ref transform, rootProgress))
+                if (HandleRootAttach(ctx, characterInfo, ref rootBone, ref transform, rootProgress))
                 {
                     rootParented = true;
                 }
@@ -417,7 +527,7 @@ public class CharacterComposer
 
         if (!rootParented)
         {
-            root.AddNode(rootBone);
+            ctx.Root.AddNode(rootBone);
         }
         
         foreach (var t in characterInfo.Models)
@@ -431,7 +541,7 @@ public class CharacterComposer
             try
             {
                 HandleModel(characterInfo, t, 
-                            scene,
+                            ctx.Scene,
                             new SkinningContext(bones, rootBone, transform));
             }
             catch (Exception e)
@@ -456,7 +566,10 @@ public class CharacterComposer
                 if (t.Attach.ExecuteType == 0) continue;
                 attachProgress = new ExportProgress(t.Models.Count, "Attach Meshes");
                 rootProgress.Children.Add(attachProgress);
-                ComposeCharacterInfo(t, (characterInfo, bones, t.Attach), scene, root, attachProgress);
+                // Descendants inherit this character's ACTUAL RootWorld, not an
+                // attach-point world, so nested children keep this root's own
+                // local transform / Attach.OffsetTransform.
+                ComposeCharacterInfo(ctx, t, new AttachContext(characterInfo, bones, transform, t.Attach), attachProgress);
             }
             catch (Exception e)
             {
@@ -471,7 +584,7 @@ public class CharacterComposer
             }
         }
 
-        return (bones, rootBone);
+        return new CharacterComposeResult(bones, rootBone, transform);
     }
     
     public static void EnsureBonesExist(Model model, List<BoneNodeBuilder> bones, BoneNodeBuilder? root)

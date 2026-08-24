@@ -11,7 +11,6 @@ namespace Meddle.Plugin.Models;
 
 public static class StructExtensions
 {
-    public const int CharacterBaseAttachOffset = 0xD0; // CharacterBase + 0xD0 -> Attach
     //
     // public const int ModelEnabledAttributeIndexMaskOffset = 0xAC; // Model + 0xAC -> EnabledAttributeIndexMask
     // public const int ModelEnabledShapeKeyIndexMaskOffset = 0xC8;  // Model + 0xC8 -> EnabledShapeKeyIndexMask

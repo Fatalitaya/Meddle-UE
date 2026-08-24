@@ -2,11 +2,14 @@
 using Meddle.Plugin.Models.Layout;
 using Meddle.Plugin.Utils;
 using Meddle.Utils;
-using Meddle.Utils.Constants;
+using Meddle.Formats;
+using Meddle.Formats.Constants;
 using Meddle.Utils.Export;
-using Meddle.Utils.Files;
-using Meddle.Utils.Files.SqPack;
-using Meddle.Utils.Files.Structs.Material;
+using Meddle.Formats.Files;
+using Meddle.Formats.Files.MdlFile;
+using Meddle.Formats.Files.MtrlFile;
+using Meddle.Formats.Helpers;
+using Meddle.SqPack;
 using Meddle.Utils.Helpers;
 using Microsoft.Extensions.Logging;
 using SharpGLTF.Materials;
@@ -22,6 +25,7 @@ public class ComposerCache
     private readonly ConcurrentDictionary<string, string> mtrlPathCache = new();
     private readonly ConcurrentDictionary<string, PbdFile> pbdCache = new();
     private readonly ConcurrentDictionary<string, RefCounter<MdlFile>> mdlCache = new();
+    private readonly ConcurrentDictionary<string, byte> sklbCache = new(StringComparer.OrdinalIgnoreCase);
     
     private sealed class RefCounter<T>(T obj)
     {
@@ -29,11 +33,11 @@ public class ComposerCache
         public DateTime LastAccess { get; set; } = DateTime.UtcNow;
     }
     
-    private readonly SqPack pack;
+    private readonly SqPack.SqPack pack;
     private readonly string cacheDir;
     private readonly Configuration.ExportConfiguration exportConfig;
 
-    public ComposerCache(SqPack pack, string cacheDir, Configuration.ExportConfiguration exportConfig)
+    public ComposerCache(SqPack.SqPack pack, string cacheDir, Configuration.ExportConfiguration exportConfig)
     {
         this.pack = pack;
         this.cacheDir = cacheDir;
@@ -44,6 +48,45 @@ public class ComposerCache
     public PbdFile GetDefaultPbdFile()
     {
         return defaultPbdFile;
+    }
+
+    /// <summary>
+    /// Optionally caches a runtime-observed partial skeleton (.sklb) resource
+    /// into the normal cache hierarchy. This is an auxiliary raw-resource
+    /// cache only: it never parses the SKLB and never replaces or changes the
+    /// runtime skeleton evidence.
+    ///
+    /// Fail-closed contract: an unavailable path, SqPack failure or disk IO
+    /// failure must never break the surrounding character/UE/GLTF export. The
+    /// dedupe entry is removed on failure so a later export can retry.
+    /// </summary>
+    public void CacheSklb(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        if (!exportConfig.CacheFileTypes.HasFlag(CacheFileType.Sklb))
+        {
+            return;
+        }
+
+        if (!sklbCache.TryAdd(path, 0))
+        {
+            return;
+        }
+
+        try
+        {
+            CacheFile(path);
+            Plugin.Logger.LogDebug("Cached observed SKLB resource {Path}", path);
+        }
+        catch (Exception ex)
+        {
+            sklbCache.TryRemove(path, out _);
+            Plugin.Logger.LogWarning(ex, "Failed to cache SKLB {Path}", path);
+        }
     }
     
     public PbdFile GetPbdFile(string path)
