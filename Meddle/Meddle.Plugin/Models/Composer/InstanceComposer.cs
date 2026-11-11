@@ -560,6 +560,8 @@ public class InstanceComposer
             var model = new Model(bgPartsInstance.Path.GamePath, mdlFile, null);
             var meshExports = ModelBuilder.BuildMeshes(model, materialBuilders, [], null, exportConfig.CreateMeshBuilderOptions());
             meshes = meshExports.Select(x => x.Mesh).ToArray();
+            foreach (var mesh in meshes)
+                mesh.Extras = new JsonObject { ["modelPart"] = Path.GetFileNameWithoutExtension(bgPartsInstance.Path.GamePath), ["modelGamePath"] = bgPartsInstance.Path.GamePath };
         }
         
         var root = new NodeBuilder($"{bgPartsInstance.Type}_{bgPartsInstance.Path.GamePath}")
@@ -675,6 +677,7 @@ public class InstanceComposer
             {
                 if (cancellationToken.IsCancellationRequested) break;
                 var mesh = meshes[meshIdx];
+                mesh.Mesh.Extras = new JsonObject { ["modelPart"] = $"Plate_{i:D4}", ["modelGamePath"] = mdlPath };
                 scene.AddRigidMesh(mesh.Mesh, plateRoot);
             }
 

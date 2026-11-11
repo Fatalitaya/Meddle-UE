@@ -25,7 +25,7 @@ public static class SkeletonIdentity
 
     public static (string Package, Guid Guid) Write(string destination, IReadOnlyList<AssetBone> bones, string owner)
     {
-        if (string.IsNullOrEmpty(owner) || owner.Any(c => !(char.IsAsciiLetterOrDigit(c) || c == '_')))
+        if (!AssetNames.IsValid(owner))
             throw new ArgumentException("Use a sanitized character or clip-group name.", nameof(owner));
         var hash = Hash(bones);
         var asset = "SKEL_" + hash;

@@ -33,6 +33,9 @@ public class ShpkFile
     //public byte[] Strings;
     public Shader[] VertexShaders;
     public Shader[] PixelShaders;
+    public Shader[] HullShaders;
+    public Shader[] DomainShaders;
+    public Shader[] GeometryShaders;
     public MaterialParam[] MaterialParams;
     public float[] MaterialParamDefaults;
     public Resource[] Constants;
@@ -45,6 +48,8 @@ public class ShpkFile
     public Key[] SubViewKeys;
     public Node[] Nodes;
     public NodeAlias[] NodeAliases;
+    public uint NodeAliasClusterCount => Unk141A ?? 0;
+    public NodeAliasCluster[] NodeAliasClusters;
     
     public enum DxVersion : uint
     {
@@ -96,6 +101,10 @@ public class ShpkFile
         {
             PixelShaders[i] = ReadShader(ref reader, Shader.ShaderType.Pixel);
         }
+
+        HullShaders = ReadShaders(ref reader, HullShaderCount ?? 0, Shader.ShaderType.Hull);
+        DomainShaders = ReadShaders(ref reader, DomainShaderCount ?? 0, Shader.ShaderType.Domain);
+        GeometryShaders = ReadShaders(ref reader, GeometryShaderCount ?? 0, Shader.ShaderType.Geometry);
 
         MaterialParams = reader.Read<MaterialParam>(FileHeader.MaterialParamCount).ToArray();
         if (FileHeader.HasMatParamDefaults != 0)
@@ -164,8 +173,36 @@ public class ShpkFile
         }
         
         NodeAliases = reader.Read<NodeAlias>((int)FileHeader.NodeAliasCount).ToArray();
+        NodeAliasClusters = new NodeAliasCluster[checked((int)NodeAliasClusterCount)];
+        for (var i = 0; i < NodeAliasClusters.Length; i++)
+        {
+            var subView2 = reader.ReadUInt32();
+            var subView1 = reader.ReadUInt32();
+            var count = reader.ReadUInt32();
+            var unknown = reader.ReadUInt32();
+            var subClusters = new NodeAliasSubCluster[checked((int)count)];
+            for (var j = 0; j < subClusters.Length; j++)
+            {
+                var ownIndex = reader.Read<short>();
+                var aliasCount = reader.Read<ushort>();
+                if (aliasCount > 48)
+                    throw new InvalidDataException("SHPK alias subcluster exceeds its 97-word payload.");
+                var aliases = reader.Read<NodeAlias>(aliasCount).ToArray();
+                var extraData = reader.Read<uint>(97 - aliasCount * 2).ToArray();
+                subClusters[j] = new(ownIndex, aliases, extraData);
+            }
+            NodeAliasClusters[i] = new(subView2, subView1, unknown, subClusters);
+        }
         
         remainingOffset = reader.Position;
+    }
+
+    private Shader[] ReadShaders(ref SpanBinaryReader reader, uint count, Shader.ShaderType type)
+    {
+        var shaders = new Shader[checked((int)count)];
+        for (var i = 0; i < shaders.Length; i++)
+            shaders[i] = ReadShader(ref reader, type);
+        return shaders;
     }
     
     public Pass ReadPass(ref SpanBinaryReader r)
@@ -275,6 +312,11 @@ public class ShpkFile
         public uint Selector;
         public uint Alias;
     }
+
+    public sealed record NodeAliasCluster(uint SubView2, uint SubView1, uint Unknown,
+        NodeAliasSubCluster[] SubClusters);
+
+    public sealed record NodeAliasSubCluster(short OwnIndex, NodeAlias[] Aliases, uint[] ExtraData);
     
     public struct Resource
     {
@@ -290,7 +332,10 @@ public class ShpkFile
         public enum ShaderType
         {
             Vertex,
-            Pixel
+            Pixel,
+            Hull,
+            Domain,
+            Geometry
         }
         
         public struct ShaderDefinition

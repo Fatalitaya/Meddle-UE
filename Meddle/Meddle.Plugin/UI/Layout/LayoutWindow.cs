@@ -6,6 +6,8 @@ using Dalamud.Plugin.Services;
 using Dalamud.Bindings.ImGui;
 using FFXIVClientStructs.FFXIV.Client.System.Resource.Handle;
 using Meddle.Plugin.Models;
+using Meddle.Plugin.Export.Ue;
+using Meddle.Utils.Export.Ue;
 using Meddle.Plugin.Models.Composer;
 using Meddle.Plugin.Models.Layout;
 using Meddle.Plugin.Services;
@@ -19,6 +21,9 @@ namespace Meddle.Plugin.UI.Layout;
 public partial class LayoutWindow : ITab
 {
     private readonly ComposerFactory composerFactory;
+    private readonly UeInstanceExportService ueInstanceExportService;
+    private bool exportUeAssets;
+    private int ueMeshMergeMode;
     private readonly MdlMaterialWindowManager mdlMaterialWindowManager;
     private readonly IFramework framework;
     private readonly Configuration config;
@@ -62,7 +67,8 @@ public partial class LayoutWindow : ITab
         ComposerFactory composerFactory,
         MdlMaterialWindowManager mdlMaterialWindowManager,
         IFramework framework,
-        SqPack.SqPack dataManager)
+        SqPack.SqPack dataManager,
+        UeInstanceExportService ueInstanceExportService)
     {
         this.layoutService = layoutService;
         this.config = config;
@@ -75,6 +81,7 @@ public partial class LayoutWindow : ITab
         this.mdlMaterialWindowManager = mdlMaterialWindowManager;
         this.framework = framework;
         this.dataManager = dataManager;
+        this.ueInstanceExportService = ueInstanceExportService;
     }
 
 
@@ -392,71 +399,89 @@ public partial class LayoutWindow : ITab
                 flags |= UiUtil.ExportConfigDrawFlags.ShowTerrainOptions;
             }
             
-            if (UiUtil.DrawExportConfig(exportConfig, flags))
+            ImGui.Checkbox("Export UE Assets", ref exportUeAssets);
+            var drawFlags = exportUeAssets ? (flags & ~UiUtil.ExportConfigDrawFlags.ShowExportPose) | UiUtil.ExportConfigDrawFlags.NativeAssets : flags;
+            if (UiUtil.DrawExportConfig(exportConfig, drawFlags))
             {
                 config.ExportConfig.Apply(exportConfig);
                 config.Save();
             }
 
-            if (ImGui.Button("Export"))
+            if (exportUeAssets)
             {
-                exportConfig.UseDeformer = true;
-                if (!flags.HasFlag(UiUtil.ExportConfigDrawFlags.ShowExportPose))
-                {
-                    // Force local pose mode if we don't show the pose option
-                    exportConfig.PoseMode = SkeletonUtils.PoseMode.Local;
-                }
-
-                var filteredInstances = new List<ParsedInstance>();
-                foreach (var instance in instances)
-                {
-                    // if instance has a parent, and the parent is also in the list, skip this instance since it will be exported as an attachment of the parent
-                    if (instance is ParsedCharacterInstance {Parent: not null} childInstance)
-                    {
-                        var parentMatch = instances.FirstOrDefault(c => c.Id == childInstance.Parent.Id);
-                        if (parentMatch != null)
-                        {
-                            string parentName;
-                            if (parentMatch is ParsedCharacterInstance parentCharacter)
-                            {
-                                parentName = parentCharacter.Name;
-                            }
-                            else
-                            {
-                                parentName = parentMatch.Type.ToString();
-                            }
-
-                            log.LogDebug("Parented instance {type} {name} is already in the list as a child of {parentName}, skipping", childInstance.Kind, childInstance.Name, parentName);
-                            continue;
-                        }
-                    }
-                    
-                    filteredInstances.Add(instance);
-                }
-                
-                var filteredInstanceArray = filteredInstances.ToArray();
-                
-                var defaultName = $"InstanceExport-{DateTime.Now:yyyy-MM-dd-HH-mm-ss}";
-                cancelToken = new CancellationTokenSource();
-                fileDialog.SaveFolderDialog("Save Instances", defaultName,
-                                            (result, path) =>
-                                            {
-                                                if (!result) return;
-                                                exportTask = Task.Run(() =>
-                                                {
-                                                    var composer = composerFactory.CreateComposer(path,
-                                                                                                  exportConfig,
-                                                                                                  cancelToken.Token);
-                                                    progress = new ProgressWrapper();
-                                                    composer.Compose(filteredInstanceArray, progress);
-                                                    ExportUtil.OpenExportFolderInExplorer(path, config, cancelToken.Token);
-                                                }, cancelToken.Token);
-                                            }, config.ExportDirectory);
-
-                drawExportSettingsCallback = null;
-                ImGui.CloseCurrentPopup();
+                ImGui.Combo("模型组合", ref ueMeshMergeMode, "全部合并\0按部位合并\0不合并\0");
+                ImGui.TextWrapped("每个实例分别导出；全部合并时使用实例名，其余使用部位或模型名。保留场景位置。无骨架物件导出为单根骨骼的 Skeletal Mesh。灯光、相机和投影贴花不包含在模型导出中。");
+                if (!instances.Any(UeInstanceExportService.HasGeometry))
+                    ImGui.TextWrapped("所选实例没有可导出的模型。");
             }
 
+            using (ImRaii.Disabled(exportUeAssets && !instances.Any(UeInstanceExportService.HasGeometry)))
+            {
+                if (ImGui.Button("Export"))
+                {
+                    exportConfig.UseDeformer = true;
+                    if (!flags.HasFlag(UiUtil.ExportConfigDrawFlags.ShowExportPose))
+                    {
+                        // Force local pose mode if we don't show the pose option
+                        exportConfig.PoseMode = SkeletonUtils.PoseMode.Local;
+                    }
+
+                    var filteredInstances = new List<ParsedInstance>();
+                    foreach (var instance in instances)
+                    {
+                        // if instance has a parent, and the parent is also in the list, skip this instance since it will be exported as an attachment of the parent
+                        if (instance is ParsedCharacterInstance {Parent: not null} childInstance)
+                        {
+                            var parentMatch = instances.FirstOrDefault(c => c.Id == childInstance.Parent.Id);
+                            if (parentMatch != null)
+                            {
+                                string parentName;
+                                if (parentMatch is ParsedCharacterInstance parentCharacter)
+                                {
+                                    parentName = parentCharacter.Name;
+                                }
+                                else
+                                {
+                                    parentName = parentMatch.Type.ToString();
+                                }
+
+                                log.LogDebug("Parented instance {type} {name} is already in the list as a child of {parentName}, skipping", childInstance.Kind, childInstance.Name, parentName);
+                                continue;
+                            }
+                        }
+
+                        filteredInstances.Add(instance);
+                    }
+                    
+                    var filteredInstanceArray = filteredInstances.ToArray();
+                    var ueExport = exportUeAssets;
+                    var mergeMode = (UeMeshMergeMode)ueMeshMergeMode;
+
+                    var defaultName = $"InstanceExport-{DateTime.Now:yyyy-MM-dd-HH-mm-ss}";
+                    cancelToken = new CancellationTokenSource();
+                    fileDialog.SaveFolderDialog("Save Instances", defaultName,
+                                                (result, path) =>
+                                                {
+                                                    if (!result) return;
+                                                    exportTask = Task.Run(() =>
+                                                    {
+                                                        progress = new ProgressWrapper();
+                                                        if (ueExport)
+                                                            ueInstanceExportService.Export(filteredInstanceArray, path, exportConfig, mergeMode, cancelToken.Token, progress);
+                                                        else
+                                                        {
+                                                            var composer = composerFactory.CreateComposer(path, exportConfig, cancelToken.Token);
+                                                            composer.Compose(filteredInstanceArray, progress);
+                                                        }
+                                                        ExportUtil.OpenExportFolderInExplorer(path, config, cancelToken.Token);
+                                                    }, cancelToken.Token);
+                                                }, config.ExportDirectory);
+
+                    drawExportSettingsCallback = null;
+                    ImGui.CloseCurrentPopup();
+                }
+
+            }
             ImGui.SameLine();
             if (ImGui.Button("Cancel"))
             {

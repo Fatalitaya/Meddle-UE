@@ -68,6 +68,7 @@ public unsafe class LiveCharacterTab : ITab
     private ProgressWrapper? progress;
     private bool requestedPopup;
     private Action? drawExportSettingsCallback;
+    private int ueMeshMergeMode;
 
     public LiveCharacterTab(
         ILogger<LiveCharacterTab> log,
@@ -156,6 +157,7 @@ public unsafe class LiveCharacterTab : ITab
             return;
         }
 
+        using var characterId = ImRaii.PushId($"Character_{(nint)character}");
         var drawObject = character->GameObject.DrawObject;
         ImGui.Text(name);
         if (drawObject == null)
@@ -176,32 +178,32 @@ public unsafe class LiveCharacterTab : ITab
             //humanData = resolverService.ParseHuman(cBase);
             var humanData = ParseMaterialUtil.ParseHuman(cBase);
             DrawHumanCharacter(humanData);
-            ExportButton("Export All Models With Attaches", () =>
-            {
-                var info = resolverService.ParseCharacter(character);
-                if (info == null)
-                {
-                    throw new Exception("Failed to get character info from draw object");
-                }
-
-                return info;
-            }, character->NameString.GetCharacterName(config, character->ObjectKind));
-
-            ImGui.SameLine();
-            ExportUeAssetsButton("Export UE Assets", () =>
-            {
-                var info = resolverService.ParseCharacter(character);
-                if (info == null)
-                {
-                    throw new Exception("Failed to get character info from draw object");
-                }
-
-                return info;
-            }, character->NameString.GetCharacterName(config, character->ObjectKind), character->ObjectKind.ToString());
-            
-            ImGui.SameLine();
-            UiUtil.HintCircle("Attaches are weapons, mounts, companions, parasols, etc. If you wish to export them separately, use the export buttons in their respective sections.");
         }
+        ExportButton("Export All Models With Attaches", () =>
+        {
+            var info = resolverService.ParseCharacter(character);
+            if (info == null)
+            {
+                throw new Exception("Failed to get character info from draw object");
+            }
+
+            return info;
+        }, character->NameString.GetCharacterName(config, character->ObjectKind));
+
+        ImGui.SameLine();
+        ExportUeAssetsButton("Export UE Assets", () =>
+        {
+            var info = resolverService.ParseCharacter(character);
+            if (info == null)
+            {
+                throw new Exception("Failed to get character info from draw object");
+            }
+
+            return info;
+        }, character->NameString.GetCharacterName(config, character->ObjectKind), character->ObjectKind.ToString());
+
+        ImGui.SameLine();
+        UiUtil.HintCircle("Attaches are weapons, mounts, companions, parasols, etc. If you wish to export them separately, use the export buttons in their respective sections.");
 
         DrawDrawObject(drawObject, character->NameString.GetCharacterName(config, character->ObjectKind));
 
@@ -270,6 +272,40 @@ public unsafe class LiveCharacterTab : ITab
         }
 
         var parsedCharacterInfo = resolve();
+        requestedPopup = true;
+        drawExportSettingsCallback = () => DrawUeExportSettings(parsedCharacterInfo, name, objectKind);
+    }
+
+    private void DrawUeExportSettings(ParsedCharacterInfo characterInfo, string name, string objectKind)
+    {
+        if (!ImGui.BeginPopup("ExportSettingsPopup", ImGuiWindowFlags.AlwaysAutoResize)) return;
+        try
+        {
+            ImGui.Combo("模型组合", ref ueMeshMergeMode, "全部合并\0按部位合并\0不合并\0");
+            ImGui.TextWrapped(ueMeshMergeMode switch
+            {
+                0 => "实例和附件导出为一个模型，保留材质槽与骨骼。",
+                1 => "同一实例的各部位分别合并；附件单独分组。",
+                _ => "每个原始子网格单独导出。"
+            });
+            if (ImGui.Button("Export"))
+            {
+                StartUeExport(characterInfo, name, objectKind, (UeMeshMergeMode)ueMeshMergeMode);
+                drawExportSettingsCallback = null;
+                ImGui.CloseCurrentPopup();
+            }
+            ImGui.SameLine();
+            if (ImGui.Button("Cancel"))
+            {
+                drawExportSettingsCallback = null;
+                ImGui.CloseCurrentPopup();
+            }
+        }
+        finally { ImGui.EndPopup(); }
+    }
+
+    private void StartUeExport(ParsedCharacterInfo parsedCharacterInfo, string name, string objectKind, UeMeshMergeMode mergeMode)
+    {
         var safeName = name.SanitizeFileName();
         var defaultName = $"Character-{safeName}-{DateTime.Now:yyyy-MM-dd-HH-mm-ss}";
         cancelToken = new CancellationTokenSource();
@@ -287,7 +323,8 @@ public unsafe class LiveCharacterTab : ITab
                     name,
                     objectKind,
                     path,
-                    cancelToken.Token);
+                    cancelToken.Token,
+                    mergeMode);
                 ExportUtil.OpenExportFolderInExplorer(exportResult.OutputPath, config, cancelToken.Token);
             });
         }, config.ExportDirectory);
@@ -402,6 +439,11 @@ public unsafe class LiveCharacterTab : ITab
 
             return info;
         }, name);
+
+        ImGui.SameLine();
+        ExportUeAssetsButton("Export UE Assets", () =>
+            resolverService.ParseDrawObject(drawObject) ?? throw new InvalidDataException("Failed to resolve draw object."),
+            name, cBase->GetModelType().ToString());
 
         ImGui.SameLine();
         var currentSelectedModels = cBase->ModelsSpan.ToArray().Where(modelPtr =>

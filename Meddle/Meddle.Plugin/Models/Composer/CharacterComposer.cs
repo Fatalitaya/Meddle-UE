@@ -53,6 +53,7 @@ public class CharacterComposer
     private readonly Configuration.ExportConfiguration exportConfig;
     private readonly CancellationToken cancellationToken;
     private readonly Dictionary<ParsedCharacterInfo, Dictionary<string, MaterialBuilder>> materialCache = new();
+    private readonly Dictionary<ParsedCharacterInfo, int> modelOwners = new(ReferenceEqualityComparer.Instance);
 
     public CharacterComposer(ComposerCache composerCache, Configuration.ExportConfiguration exportConfig, CancellationToken cancellationToken)
     {
@@ -165,12 +166,17 @@ public class CharacterComposer
         }
 
         var enabledAttributes = Model.GetEnabledValues(model.EnabledAttributeMask, model.AttributeMasks).ToArray();
+        if (!modelOwners.TryGetValue(characterInfo, out var owner))
+            modelOwners.Add(characterInfo, owner = modelOwners.Count);
         var meshes = ModelBuilder.BuildMeshes(model, materialBuilders, skinningContext.Bones, deform, exportConfig.CreateMeshBuilderOptions());
         foreach (var meshExport in meshes)
         {
             var extrasDict = new Dictionary<string, string>
             {
                 {"modelGamePath", m.Path.GamePath},
+                {"modelOwner", owner.ToString()},
+                {"modelPart", characterInfo.ModelType == FFXIVClientStructs.FFXIV.Client.Graphics.Scene.CharacterBase.ModelType.Human
+                    ? ((Meddle.Plugin.Models.HumanModelSlotIndex)m.SlotIndex).ToString() : $"{characterInfo.ModelType}_{m.SlotIndex}"},
                 {"modelFullPath", m.Path.FullPath},
                 {"modelEnabled", m.Enabled.ToString()},
                 {"meshShapes", meshExport.Shapes != null ? string.Join(",", meshExport.Shapes) : ""},

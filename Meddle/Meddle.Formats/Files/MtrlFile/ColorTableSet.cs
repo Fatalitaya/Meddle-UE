@@ -104,7 +104,7 @@ public readonly struct LegacyColorTable
     public const int Size = LegacyNumRows * LegacyColorTableRow.Size;
     private readonly LegacyColorTableRow[] rows;
     private readonly ShortVec4[][] buffer; 
-    public static readonly (int Width, int Height) TextureSize = (8, 16);
+    public static readonly (int Width, int Height) TextureSize = (LegacyColorTableRow.Size / ShortVec4.Size, LegacyNumRows);
     public IReadOnlyList<ShortVec4[]> Buffer => buffer;
     public ReadOnlySpan<LegacyColorTableRow> Rows => new(rows);
     public LegacyColorTable(ref SpanBinaryReader reader)

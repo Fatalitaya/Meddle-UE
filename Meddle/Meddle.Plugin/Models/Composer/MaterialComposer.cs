@@ -89,6 +89,7 @@ public class MaterialComposer
         SetSamplers();
 
         SetProperty("ShaderPackage", shaderPackage.Name);
+        SetProperty("SourceTangentBasis", "FFXIVBinormal");
         SetProperty("Material", mtrlPath);
         SetProperty("RenderBackfaces", RenderBackfaces);
         SetProperty("IsTransparent", IsTransparent);
@@ -201,6 +202,15 @@ public class MaterialComposer
                 }
 
                 TextureUsageDict[usage] = gamePath;
+                SetProperty($"{usage}_Sampler", new
+                {
+                    sampler.Flags,
+                    AddressModeU = sampler.AddressModeU.ToString(),
+                    AddressModeV = sampler.AddressModeV.ToString(),
+                    sampler.LodBias,
+                    sampler.MinLod,
+                    sampler.UnknownFlags
+                });
             }
         }
     }

@@ -81,8 +81,13 @@ public class MtrlFile
         ShaderValues = reader.Read<uint>(ShaderHeader.ShaderValueListSize / 4).ToArray();
     }
 
-    public bool LargeColorTable =>
-        AdditionalData.Length > 1 && AdditionalData[1] == 0x05 && (AdditionalData[0] & 0x30) == 0x30;
+    // Width/height are log2 counts of RGBA half texels, packed into bits 4..11.
+    public int TableDimensionLogs =>
+        ((AdditionalData.Length > 0 ? AdditionalData[0] >> 4 : 0)
+         | (AdditionalData.Length > 1 ? AdditionalData[1] << 4 : 0)) & 0xFF;
+
+    public bool LargeColorTable => TableDimensionLogs == 0x53
+        || (TableDimensionLogs == 0 && DataSet.Length >= ColorTable.Size);
 
     public bool HasTable => AdditionalData.Length > 0 && (AdditionalData[0] & 0x4) != 0;
     public bool HasDyeTable => AdditionalData.Length > 0 && (AdditionalData[0] & 0x8) != 0;
@@ -99,9 +104,30 @@ public struct Constant
 public unsafe struct Sampler
 {
     public uint SamplerId;
-    public uint Flags; // Bitfield; values unknown
+    public uint Flags;
     public byte TextureIndex;
     private fixed byte padding[3];
+
+    public readonly TextureAddressMode AddressModeU => (TextureAddressMode)(Flags & 3);
+    public readonly TextureAddressMode AddressModeV => (TextureAddressMode)((Flags >> 2) & 3);
+    public readonly float LodBias
+    {
+        get
+        {
+            var raw = (int)((Flags >> 10) & 0x3FF);
+            return (raw >= 512 ? raw - 1024 : raw) / 64f;
+        }
+    }
+    public readonly uint MinLod => (Flags >> 20) & 0xF;
+    public readonly uint UnknownFlags => Flags & ~0x00FFFC0Fu;
+}
+
+public enum TextureAddressMode
+{
+    Wrap = 0,
+    Mirror = 1,
+    Clamp = 2,
+    Border = 3
 }
 
 public struct ShaderKey

@@ -82,7 +82,7 @@ public sealed class PhaseEArchitectureTests
     public void ColorTable_DimensionsAndTextureSize()
     {
         Assert.AreEqual((8, 32), ColorTable.TextureSize);
-        Assert.AreEqual((8, 16), LegacyColorTable.TextureSize);
+        Assert.AreEqual((4, 16), LegacyColorTable.TextureSize);
     }
 
     [TestMethod]

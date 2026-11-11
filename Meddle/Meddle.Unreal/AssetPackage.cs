@@ -17,8 +17,8 @@ internal sealed class AssetPackage
     public AssetPackage(string packagePath)
     {
         if (!packagePath.StartsWith("/Game/", StringComparison.Ordinal) ||
-            packagePath.Split('/').Skip(1).Any(x => x.Length == 0 || x.Any(c => !(char.IsAsciiLetterOrDigit(c) || c == '_'))))
-            throw new ArgumentException("Use a /Game/ package path containing letters, digits and underscores.", nameof(packagePath));
+            packagePath.Split('/').Skip(1).Any(x => !AssetNames.IsValid(x)))
+            throw new ArgumentException("Use a /Game/ package path containing Unicode letters, digits and underscores.", nameof(packagePath));
         Asset = UAsset.DeserializeJson(Shell);
         Asset.FolderName = new FString(packagePath);
         Asset.PersistentGuid = Guid.NewGuid();

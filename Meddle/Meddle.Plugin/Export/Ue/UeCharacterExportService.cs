@@ -36,7 +36,8 @@ public sealed class UeCharacterExportService : IService
         string displayName,
         string objectKind,
         string destinationPath,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        UeMeshMergeMode mergeMode = UeMeshMergeMode.All)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -63,7 +64,7 @@ public sealed class UeCharacterExportService : IService
                 cancellationToken.ThrowIfCancellationRequested();
                 NativeAssetExporter.Export(scene.ToGltf2(), finalDirectory,
                     string.IsNullOrWhiteSpace(displayName) ? finalDirectoryName : displayName,
-                    Path.Combine(staging, "cache"), token: cancellationToken);
+                    Path.Combine(staging, "cache"), token: cancellationToken, mergeMode: mergeMode);
                 return new UeExportResult(finalDirectory);
             }
             finally

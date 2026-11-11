@@ -91,41 +91,46 @@ public static class UiUtil
         ShowUseDeformer = 4,
         ShowSubmeshOptions = 8,
         ShowTerrainOptions = 16,
+        NativeAssets = 32,
     }
 
     public static bool DrawExportConfig(Configuration.ExportConfiguration exportConfiguration, ExportConfigDrawFlags flags = ExportConfigDrawFlags.None)
     {
         bool changed = false;
-        var cacheFileTypes = exportConfiguration.CacheFileTypes;
-        if (EnumExtensions.DrawEnumCombo("Extra Cache Files", ref cacheFileTypes))
+        if (!flags.HasFlag(ExportConfigDrawFlags.NativeAssets))
         {
-            exportConfiguration.CacheFileTypes = cacheFileTypes;
-            changed = true;
-        }
-
-        ImGui.SameLine();
-        HintCircle("Select which files to cache when exporting, this is not needed in most cases");
-
-        var exportType = exportConfiguration.ExportType;
-        if (EnumExtensions.DrawEnumCombo("Export type", ref exportType))
-        {
-            exportConfiguration.ExportType = exportType;
-            if (exportType == 0)
+            var cacheFileTypes = exportConfiguration.CacheFileTypes;
+            if (EnumExtensions.DrawEnumCombo("Extra Cache Files", ref cacheFileTypes))
             {
-                exportConfiguration.ExportType = Configuration.DefaultExportType;
+                exportConfiguration.CacheFileTypes = cacheFileTypes;
+                changed = true;
             }
 
-            changed = true;
-        }
-        
-        ImGui.SameLine();
-        HintCircle("Select the type of export to use, GLTF is recommended for most cases.\n" +
-                   "GLB is a binary version of GLTF, and OBJ is a legacy format that is not recommended for most cases.");
+            ImGui.SameLine();
+            HintCircle("Select which files to cache when exporting, this is not needed in most cases");
 
-        if (exportType.HasFlag(ExportType.OBJ))
-        {
-            // draw warning that OBJ is not recommended
-            ImGui.TextColored(new Vector4(1, 0, 0, 1), "OBJ export is not recommended and may not work as expected.");
+            var exportType = exportConfiguration.ExportType;
+            if (EnumExtensions.DrawEnumCombo("Export type", ref exportType))
+            {
+                exportConfiguration.ExportType = exportType;
+                if (exportType == 0)
+                {
+                    exportConfiguration.ExportType = Configuration.DefaultExportType;
+                }
+
+                changed = true;
+            }
+
+            ImGui.SameLine();
+            HintCircle("Select the type of export to use, GLTF is recommended for most cases.\n" +
+                       "GLB is a binary version of GLTF, and OBJ is a legacy format that is not recommended for most cases.");
+
+            if (exportType.HasFlag(ExportType.OBJ))
+            {
+                // draw warning that OBJ is not recommended
+                ImGui.TextColored(new Vector4(1, 0, 0, 1), "OBJ export is not recommended and may not work as expected.");
+            }
+
         }
 
         if (flags.HasFlag(ExportConfigDrawFlags.ShowExportPose))

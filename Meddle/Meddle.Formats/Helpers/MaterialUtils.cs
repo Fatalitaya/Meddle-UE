@@ -78,6 +78,13 @@ public static class MaterialUtils
         {
             return null;
         }
+
+        // Unknown dimensions remain available in DataSet; do not reinterpret them
+        // as the legacy layout. Explicit legacy dimensions with dye are opaque in
+        // the reference parser as well.
+        if (file.TableDimensionLogs is not (0 or 0x53)
+            && (file.TableDimensionLogs != 0x42 || file.HasDyeTable))
+            return null;
         
         var dataSetReader = new SpanBinaryReader(file.DataSet);
         return file.LargeColorTable switch

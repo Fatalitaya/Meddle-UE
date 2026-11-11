@@ -6,10 +6,27 @@
 This project is a Dalamud plugin which provides a GUI for exporting player models from FFXIV.
 
 This fork also writes editable UE 5.8.3 Skeleton, SkeletalMesh, AnimSequence,
-Texture2D and Material assets directly from Meddle. It supports captured final-pose
+Texture2D and Material assets directly from Meddle. Character exports include NPCs,
+monsters and attachments; Layout exports include furniture, background models,
+shared groups and terrain plates, with three mesh grouping options. Rigid geometry
+currently uses a single-bone SkeletalMesh. It also supports captured final-pose
 animation and PAP/SKLB clip baking. See [UE export and validation](docs/UE_EXPORT_SCHEMA.md)
 for usage, supported material features and verification status. Initialize the
 `third_party/UAssetAPI` submodule before building.
+
+### Building with Visual Studio
+
+The projects require .NET 10 and C# 14 (Dalamud SDK 15). Visual Studio 2026
+is the officially supported IDE. For Visual Studio 2022, use 17.14 with a
+separately installed .NET 10.0.1xx SDK; newer SDK feature bands can require
+newer MSBuild versions. VS2022 builds still report `NETSDK1233`, and its editor
+does not fully support this target.
+
+Open `Meddle.sln` and select `Debug | x64` or `Release | x64`. Set `DALAMUD_HOME`
+to your Dalamud development library directory. The plugin maps to x64 while
+managed library projects use Any CPU. Package pruning is disabled so VS2022
+and the dotnet CLI can share the dependency lock files without a
+`System.Text.Json` restore failure.
 
 - [Installation](#installation)
 - [Releases](https://github.com/PassiveModding/Meddle/releases)
