@@ -245,11 +245,14 @@ public sealed class UeSnapshotBuilder
         var shpkPath = string.IsNullOrWhiteSpace(material.Shpk)
             ? null
             : $"shader/sm5/shpk/{material.Shpk}";
-        var shpkReference = string.IsNullOrWhiteSpace(shpkPath)
+        var resolvedShpkPath = string.IsNullOrWhiteSpace(material.ShpkPath)
+            ? shpkPath
+            : material.ShpkPath;
+        var shpkReference = string.IsNullOrWhiteSpace(resolvedShpkPath)
             ? null
             : RegisterPathResource(
                 shpkPath,
-                shpkPath,
+                resolvedShpkPath,
                 UeResourceType.Shpk,
                 modelId,
                 materialIndex,
@@ -261,7 +264,7 @@ public sealed class UeSnapshotBuilder
             ResolvedPath = material.Path.FullPath,
             ResourceId = materialReference?.Id,
             ShaderPackageLogicalPath = shpkPath,
-            ShaderPackageResolvedPath = shpkPath,
+            ShaderPackageResolvedPath = resolvedShpkPath,
             ShaderPackageResourceId = shpkReference?.Id,
             Stain0 = material.Stain0 == null ? null : ToStain(material.Stain0),
             Stain1 = material.Stain1 == null ? null : ToStain(material.Stain1),
