@@ -188,7 +188,7 @@ public unsafe class LiveCharacterTab : ITab
             }, character->NameString.GetCharacterName(config, character->ObjectKind));
 
             ImGui.SameLine();
-            ExportUeBundleButton("Export UE Bundle", () =>
+            ExportUeAssetsButton("Export UE Assets", () =>
             {
                 var info = resolverService.ParseCharacter(character);
                 if (info == null)
@@ -261,7 +261,7 @@ public unsafe class LiveCharacterTab : ITab
         }
     }
 
-    private void ExportUeBundleButton(string text, Func<ParsedCharacterInfo> resolve, string name, string objectKind)
+    private void ExportUeAssetsButton(string text, Func<ParsedCharacterInfo> resolve, string name, string objectKind)
     {
         using var disabled = ImRaii.Disabled(!exportTask.IsCompleted);
         if (!ImGui.Button(text))
@@ -273,7 +273,7 @@ public unsafe class LiveCharacterTab : ITab
         var safeName = name.SanitizeFileName();
         var defaultName = $"Character-{safeName}-{DateTime.Now:yyyy-MM-dd-HH-mm-ss}";
         cancelToken = new CancellationTokenSource();
-        fileDialog.SaveFolderDialog("Save UE Bundle", defaultName, (result, path) =>
+        fileDialog.SaveFolderDialog("Save UE Assets", defaultName, (result, path) =>
         {
             if (!result)
             {

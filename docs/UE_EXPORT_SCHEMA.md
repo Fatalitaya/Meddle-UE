@@ -1,292 +1,44 @@
-# Meddle-UE Phase 2 Export Schema (ABI v4)
+# UE 5.8.3 标准资产导出
 
-## Architecture
+此版本直接在 Meddle 内生成 UE 5.8.3 可编辑资产，替代旧 ABI v4 JSON/原始资源 Bundle。生产导出不启动 UE，不依赖 FFXIVImporter，也不通过外部 FBX/glTF 导入器生成资产。内部复用角色 Composer 的内存场景，以保持现有蒙皮、种族变形和附件处理。
 
-The UE exporter branches after the existing Meddle runtime parser and before
-`CharacterComposer`. The data flow is:
+## 使用
 
-```text
-FFXIV Character / CharacterBase / DrawObject
-  -> ResolverService / ParseMaterialUtil / PbdHooks
-  -> ParsedCharacterInfo
-  -> UeSnapshotBuilder
-  -> character.json + manifest.json + resources/
-  -> FFXIVImporter
+- **Live Character → Export UE Assets**：导出 Skeleton、SkeletalMesh（包含形态目标）、Texture2D 和基础 PBR Material。
+- **Animation → Start Capture / Stop Capture → Export → UE 5.8.3 assets**：捕获游戏最终骨骼姿态，在插件内重采样为 30 或 60 fps AnimSequence。采集使用单调时钟；游戏帧率决定实际观测频率，插值不会补出未观测的物理运动。
+- **Animation → Bake PAP to UE assets**：输入本地 PAP 和匹配 SKLB 的完整文件路径，选择 30/60 fps、原地或根运动，烘焙全部命名片段。此处“离线”指不播放片段；仍须在运行中的 FFXIV/Dalamud 内使用游戏 Havok 解码器。
+- 将输出目录中的 `Content/Meddle` 整体复制到 UE 项目的 `Content/Meddle`，然后打开编辑器。保留相对路径；如需移动资产，在 UE 内容浏览器中移动以维护引用。
+
+资产包路径固定在 `/Game/Meddle`。相同拓扑与参考姿态的骨架通过签名共享，路径为 `Skeletons/SKEL_<sha256>`。不同参考姿态或附件骨架产生独立 Skeleton；需要时使用 UE 的标准重定向功能。
+
+## 数据约定
+
+- 坐标：输入米制 Y-up 转为 UE 厘米 Z-up，`(x,y,z) → (-z,x,y)*100`；同步转换骨骼、网格、法线、切线和三角形绕序。
+- 骨骼：父节点先于子节点，增加 `Meddle_Root`，按深度和名称排序；保留非均匀缩放。捕获期间骨架拓扑改变会中止导出，需重新录制。
+- 动画：标准 AnimSequence + AnimDataModel，保存可编辑逐骨骼 TRS 轨道。根运动放在 `Meddle_Root`；PAP 的提取运动使用 Havok reference frame，未提取时从根骨轨道生成。缺失骨骼轨道使用参考姿态。
+- 网格：标准 SkeletalMesh imported LOD0，最多 4 组 UV、12 个蒙皮影响，保留顶点颜色和 MorphTarget。UE 首次加载时构建自身派生渲染数据。
+- 纹理：可编辑 BGRA8 source，使用 UE 支持的非虚拟化内联 bulk 编码。UE 加载/保存时升级为当前源数据格式。
+- 材质：漫反射与法线纹理、基础肤色/发色/虹膜色、透明度和双面设置。粗糙度默认为 0.6，金属度默认为 0。其余 mask/index/color-table 纹理也作为标准 Texture2D 保留；此版本不复刻 XIV 的专用着色器、染色表采样、头发高光、眼球/皮肤专用光照。贴图颜色因子在线性空间烘入漫反射。
+- PAP 输出骨骼变换轨道；不转换游戏事件、音效、特效及浮点槽为 UE 通知或曲线。
+
+## 构建
+
+```powershell
+git submodule update --init third_party/UAssetAPI
+dotnet build Meddle.sln -c Release
+dotnet test Meddle/Meddle.Utils.Tests -c Release
 ```
 
-The UE path never creates a `SceneBuilder`, `CharacterComposer`, glTF, GLB, or
-OBJ artifact. The exporter stores observed runtime state, not reconstructed
-lookup rules.
+UAssetAPI 固定到 `05910ba8f6d278201120e10d87adbb06dfb3a097`（MIT），只负责包表和基础二进制写入；标准 Engine 资产的序列化实现在 `Meddle.Unreal`。包头模板是自建测试资产的空包元数据，不包含 UE 源码或游戏资源。发行包须包含 Meddle.Unreal、UAssetAPI 及其依赖。
 
-## Bundle Layout
+## 验证
 
-```text
-Character-<name>-<timestamp>/
-  character.json
-  manifest.json
-  bundle.complete
-  resources/
-    c0101e0001_top_91ac82ef.mdl
-    mt_c0101e0001_top_a_a81bc921.mtrl
-    diffuse_82fa91be.tex
-    character_opaque_7ca91d2e.shpk
-    sklb_3f9ac512.sklb
-    runtime_decal_2c6f18aa.png
+```powershell
+./tools/NativeAssetProbe/validate.ps1 -EngineRoot 'D:/UE/Source/UnrealEngine-5.8.3-release'
 ```
 
-`resources/` is always flat. Physical filenames are human-readable aliases
-containing a sanitized source basename and a hash prefix. The SHA-256 remains
-the authoritative resource identity.
+该验证单独创建临时 UE 工程，先由 .NET 写入资产，再由 UE 加载并检查顶点数、形态目标、纹理尺寸、材质连接、30/60 fps 动画多个时刻的数值和重新保存。UE 仅是验证工具，不是生产导出依赖。
 
-## Schema Version
+本机已通过该验证及托管单元测试。尚未在游戏内实测完整角色导出与 PAP 原生采样，也未进行真实角色材质的视觉验收。
 
-`UeExportSchema.CurrentVersion` is the single authoritative schema version:
-
-```csharp
-public const int CurrentVersion = 4;
-```
-
-Both `character.json` and `manifest.json` use this integer at the root as
-`schemaVersion`. There is no `header.schemaVersion`.
-
-## character.json
-
-Document metadata exists once at the root:
-
-```json
-{
-  "schemaVersion": 4,
-  "generator": {
-    "name": "Meddle-UE",
-    "version": "0.0.1",
-    "commit": null,
-    "dirty": true,
-    "buildId": "<module version id>"
-  },
-  "knownCaptureGaps": [
-    "SkinMaterialConstantBuffer",
-    "HairRenderMaterialFlags",
-    "DeformerObservationDependsOnHumanCreateDeformer"
-  ],
-  "root": {
-    "nodeId": "root",
-    "capture": {
-      "capturedAtUtc": "...",
-      "characterName": "...",
-      "objectKind": "Pc",
-      "modelType": "Human",
-      "genderRace": 801
-    },
-    "customize": {},
-    "models": [],
-    "skeleton": {
-      "transform": {},
-      "partialSkeletons": []
-    },
-    "attach": {},
-    "attaches": []
-  }
-}
-```
-
-Each runtime character/draw-object node recurses under `root.attaches` and
-does not duplicate `schemaVersion`, `generator`, or `knownCaptureGaps`.
-Node ids are deterministic:
-
-```text
-root
-root/attach-0
-root/attach-1
-root/attach-0/attach-0
-```
-
-Model ids are globally scoped:
-
-```text
-root/model-0
-root/attach-0/model-0
-```
-
-Every manifest observation event carries `nodeId`; model-scoped observations
-also carry the global `modelId`.
-
-## Deformer Observation Semantics
-
-Deformer state is captured by `PbdHooks` from `Human_CreateDeformer`. The UE
-path never parses a race code from an MDL filename, never reads `human.pbd`
-to infer a deformer, and never emits `StaticResolved`.
-
-The observation cache is keyed by human pointer and slot, but also stores the
-current model pointer, model resource handle pointer, and model resource path.
-At parse time, a cached observation is returned only when all of those match
-the current model. A mismatch is treated as `NotObserved`, never as stale
-evidence. Destroyed humans are pruned from the cache using the existing
-`IFramework.Update` lifecycle tick and the game object manager; entries without
-a complete model identity are never stored.
-
-States:
-
-| State | Meaning |
-| --- | --- |
-| `Observed` | `Human_CreateDeformer` returned a usable deformer/PBD relationship. |
-| `ObservedNone` | `Human_CreateDeformer` was observed and returned no deformer. |
-| `ObservedIncomplete` | The call returned a structure, but PBD handle/path data was unavailable. |
-| `NotObserved` | No valid, identity-matched runtime observation exists. |
-| `NotApplicable` | The model is not a Human model. |
-
-An observed deformer uses the raw runtime fields:
-
-```json
-{
-  "status": "Observed",
-  "pbdResourcePath": "chara/xls/boneDeformer/human.pbd",
-  "pbdResource": {
-    "resourceId": "sha256:...:pbd",
-    "availability": "Available"
-  },
-  "raceSexId": 1401,
-  "deformerId": 13
-}
-```
-
-PBD resource availability is a separate axis from runtime observation
-validity. If the observed PBD path cannot be read, `status` remains
-`Observed`; the manifest records the PBD as `Unavailable` or `Unresolved` and
-adds a resource observation. The deformer's `pbdResource.availability` then
-carries the same `Unavailable` or `Unresolved` value; resource export failure
-never downgrades runtime observation.
-
-PBD resources are registered only when an observed PBD relationship provides
-`pbdResourcePath`. A bundle containing only `NotObserved`, `ObservedNone`, or
-`NotApplicable` deformer states may contain no PBD resource.
-
-## ColorTable ABI
-
-`colorTable` is an explicit DTO, not a serialized `JsonElement` blob.
-
-Modern runtime tables use:
-
-```json
-{
-  "kind": "Modern",
-  "colorTable": [
-    {
-      "diffuse": [0.08, 0.05, 0.02],
-      "glossStrength": 0.5,
-      "scalar3": 0.5,
-      "specular": [1.0, 1.0, 1.0],
-      "specularStrength": 1.0,
-      "scalar7": 1.0,
-      "emissive": [0.0, 0.0, 0.0],
-      "scalar11": 0.0,
-      "sheenRate": 0.0,
-      "sheenTint": 0.0,
-      "sheenAptitude": 0.0,
-      "scalar15": 0.0,
-      "roughness": 0.5,
-      "scalar17": 0.0,
-      "metalness": 0.0,
-      "anisotropy": 0.0,
-      "scalar20": 0.0,
-      "sphereMask": 0.0,
-      "scalar22": 0.0,
-      "scalar23": 0.0,
-      "shaderId": 0,
-      "tileIndex": 0,
-      "tileAlpha": 1.0,
-      "sphereIndex": 0,
-      "tileMatrix": {
-        "uu": 150.0,
-        "uv": 0.0,
-        "vu": 0.0,
-        "vv": 225.0
-      }
-    }
-  ],
-  "colorDyeTable": []
-}
-```
-
-Vectors are always numeric arrays. `tileMatrix` always has named numeric
-fields. No vector or matrix may serialize as `{}`.
-
-Legacy runtime tables use:
-
-```json
-{
-  "kind": "Legacy",
-  "colorTable": [
-    {
-      "diffuse": [0.08, 0.05, 0.02],
-      "specular": [1.0, 1.0, 1.0],
-      "specularStrength": 0.0,
-      "emissive": [0.0, 0.0, 0.0],
-      "glossStrength": 0.0,
-      "materialRepeat": [1.0, 1.0],
-      "materialSkew": [0.0, 0.0],
-      "tileIndex": 0
-    }
-  ],
-  "colorDyeTable": []
-}
-```
-
-Modern dye rows preserve template, channel, and all exposed flags. Legacy dye
-rows preserve template, diffuse/specular/emissive flags, gloss, and specular
-strength. Row order is preserved.
-
-## manifest.json
-
-The manifest keeps the same content-addressed resource model:
-
-```json
-{
-  "schemaVersion": 4,
-  "resources": [],
-  "observations": []
-}
-```
-
-Observation events now identify the snapshot node:
-
-```json
-{
-  "code": "ResourceUnavailable",
-  "message": "PBD bytes were unavailable.",
-  "resourceType": "pbd",
-  "logicalPath": "chara/xls/boneDeformer/human.pbd",
-  "resolvedPath": "chara/xls/boneDeformer/human.pbd",
-  "resourceId": "observation:<sha256>",
-  "nodeId": "root",
-  "modelId": "root/model-0"
-}
-```
-
-Resource behavior is unchanged:
-
-- content SHA-256 identity
-- collision-safe flat filenames
-- logicalPath + resolvedPath
-- aliases and deduplication
-- Game / Modded / RuntimeGenerated origins
-- `Available`, `Unavailable`, and `Unresolved` availability
-- atomic completion and `bundle.complete`
-
-## Excluded From ABI
-
-- `ParsedModelInfo.ModelAddress`
-- any `nint`, `IntPtr`, or process address
-- `header.schemaVersion`
-- `sourceRace` / `targetRace` deformer fields
-- `StaticResolved`, `CaptureFailed`, `Unsupported` deformer statuses
-- CharacterComposer lookup/fallback rules
-- filename-derived race or deformer state
-- automatic `chara/xls/boneDeformer/human.pbd` export
-
-## Known Remaining Gaps
-
-- Skin material constant buffers are not captured.
-- Hair render material flags are not captured.
-- Deformer state may legitimately be `NotObserved` because capture is
-  observation-driven and depends on `Human_CreateDeformer`.
-- Skeleton composition semantics are not declared fully solved.
+Havok ABI 静态核对使用游戏版本 `2026.11.03.0000.0000`，`ffxiv_dx11.exe` SHA256 为 `52042b60631cf2c48851b3aaee36e9ec4fedd6d7f2c68f0e9a8c3befb0af9f98`。该版本 `hkaAnimation::sampleTracks` 和 `hkaAnimatedReferenceFrame::getReferenceFrame` 均为虚表槽 4；槽 3 是删除对象的函数，不能沿用其他游戏的 Havok 槽位。游戏更新后需重新核对原生 ABI。

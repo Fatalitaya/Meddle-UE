@@ -19,7 +19,9 @@ namespace Meddle.Plugin.UI;
 public record AnimationExportSettings(
     bool IncludePositionalData,
     bool IncludeAbsolutePosition,
-    string Path);
+    string Path,
+    bool NativeAssets = false,
+    int FramesPerSecond = 30);
 
 public class AnimationTab : ITab
 {
@@ -34,7 +36,17 @@ public class AnimationTab : ITab
     private bool includePositionalData;
     private bool includeAbsolutePosition;
     private bool requestedPopup;
-    private int intervalMs = 100;
+    private int intervalMs = 16;
+    private bool nativeAssets = true;
+    private bool sixtyFps;
+    private readonly System.Diagnostics.Stopwatch captureClock = System.Diagnostics.Stopwatch.StartNew();
+    private long lastCaptureTicks;
+    private readonly DateTime captureEpoch = DateTime.UtcNow;
+    private string papPath = "";
+    private string sklbPath = "";
+    private bool papInPlace = true;
+    private string? exportError;
+    private Task? nativeExportTask;
     private Action? drawExportSettingsCallback;
     public MenuType MenuType => MenuType.Default;
     private readonly FileDialogManager fileDialog = new()
@@ -65,11 +77,58 @@ public class AnimationTab : ITab
     
     public void Draw()
     {
+        if (nativeExportTask is { IsCompleted: true })
+        {
+            if (nativeExportTask.Exception != null) exportError = nativeExportTask.Exception.GetBaseException().Message;
+            nativeExportTask = null;
+        }
+        if (exportError != null) ImGui.TextWrapped(exportError);
+        using (ImRaii.Disabled(nativeExportTask != null))
+        if (ImGui.CollapsingHeader("Bake PAP to UE assets"))
+        {
+            ImGui.InputText("PAP file", ref papPath, 2048);
+            ImGui.InputText("Matching SKLB file", ref sklbPath, 2048);
+            ImGui.Checkbox("In place", ref papInPlace);
+            ImGui.Checkbox("60 fps (otherwise 30)##PAP", ref sixtyFps);
+            if (ImGui.Button("Bake all PAP clips"))
+            {
+                fileDialog.SaveFolderDialog("Save UE animations", "PapAnimations", (result, path) =>
+                {
+                    if (!result) return;
+                    try
+                    {
+                        // File dialog callbacks execute on the framework/UI thread. Native Havok
+                        // resources are released before the managed package-writing task starts.
+                        var pap = new Meddle.Formats.Files.PapFile(File.ReadAllBytes(papPath));
+                        var rig = new Meddle.Formats.Files.SklbFile(File.ReadAllBytes(sklbPath));
+                        var baked = Meddle.Plugin.Havok.PapAnimationBaker.Bake(pap, rig, sixtyFps ? 60 : 30, papInPlace);
+                        var name = Meddle.Utils.Export.Ue.NativeAssetExporter.SafeName(Path.GetFileNameWithoutExtension(papPath));
+                        var rootMotion = !papInPlace;
+                        exportError = null;
+                        nativeExportTask = Task.Run(() =>
+                        {
+                            var package = "/Game/Meddle/" + name;
+                            var folder = Path.Combine(path, "Content", "Meddle", name);
+                            Directory.CreateDirectory(folder);
+                            var (skeletonPackage, guid) = Meddle.Unreal.SkeletonIdentity.Write(path, baked.Bones);
+                            for (var i = 0; i < baked.Clips.Length; i++)
+                            {
+                                var clip = baked.Clips[i];
+                                var asset = $"A_{i}_{Meddle.Utils.Export.Ue.NativeAssetExporter.SafeName(clip.Name)}";
+                                Meddle.Unreal.AnimationWriter.Write(Path.Combine(folder, asset + ".uasset"), package + "/" + asset,
+                                    skeletonPackage, guid, baked.Bones, clip.Animation, rootMotion);
+                            }
+                        });
+                    }
+                    catch (Exception ex) { exportError = ex.Message; logger.LogError(ex, "PAP bake failed"); }
+                }, config.ExportDirectory);
+            }
+        }
         commonUi.DrawMultiCharacterSelect(ref selectedCharacters);
         
         if (ImGui.InputInt("Interval (ms)", ref intervalMs, 10, 100))
         {
-            if (intervalMs < 50) intervalMs = 50;
+            if (intervalMs < 1) intervalMs = 1;
             if (intervalMs > 1000) intervalMs = 1000;
         }
 
@@ -109,6 +168,8 @@ public class AnimationTab : ITab
                 try
                 {
                     ImGui.Checkbox("Include Positional Data", ref includePositionalData);
+                    ImGui.Checkbox("UE 5.8.3 assets", ref nativeAssets);
+                    if (nativeAssets) ImGui.Checkbox("Bake at 60 fps (otherwise 30)", ref sixtyFps);
                     
                     using (var disabled = ImRaii.Disabled(!includePositionalData))
                     {
@@ -119,11 +180,13 @@ public class AnimationTab : ITab
                     
                     if (ImGui.Button("Export"))
                     {
-                        var settings = new AnimationExportSettings(includePositionalData, includeAbsolutePosition, folderName);
+                        var settings = new AnimationExportSettings(includePositionalData, includeAbsolutePosition, folderName, nativeAssets, sixtyFps ? 60 : 30);
                         fileDialog.SaveFolderDialog("Save Animation", folderName, (result, path) =>
                         {
                             if (!result) return;
-                            animationExportService.ExportAnimation(frames, settings with { Path = path }, CancellationToken.None);
+                            var snapshot = frames.ToList();
+                            exportError = null;
+                            nativeExportTask = Task.Run(() => animationExportService.ExportAnimation(snapshot, settings with { Path = path }, CancellationToken.None));
                         }, config.ExportDirectory); 
                         drawExportSettingsCallback = null;
                         ImGui.CloseCurrentPopup();
@@ -180,7 +243,7 @@ public class AnimationTab : ITab
     {
         if (!captureAnimation) return;
 
-        if (frames.Count > 0 && DateTime.UtcNow - frames[^1].Time < TimeSpan.FromMilliseconds(intervalMs))
+        if (frames.Count > 0 && captureClock.ElapsedTicks - lastCaptureTicks < System.Diagnostics.Stopwatch.Frequency * intervalMs / 1000)
         {
             return;
         }
@@ -236,7 +299,8 @@ public class AnimationTab : ITab
             }
         }
         
-        frames.Add((DateTime.UtcNow, attachCollection.ToArray()));
+        lastCaptureTicks = captureClock.ElapsedTicks;
+        frames.Add((captureEpoch + captureClock.Elapsed, attachCollection.ToArray()));
     }
 
     public static unsafe AffineTransform GetTransform(Pointer<CharacterBase> characterPointer)

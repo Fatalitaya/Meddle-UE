@@ -6,9 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Meddle.Plugin.Export.Ue;
 
-public sealed record UeExportResult(
-    string OutputPath,
-    IReadOnlyList<UeExportObservation> Observations);
+public sealed record UeExportResult(string OutputPath);
 
 public sealed class UeCharacterExportService : IService
 {
@@ -46,55 +44,45 @@ public sealed class UeCharacterExportService : IService
         var finalDirectoryName = Path.GetFileName(finalDirectory);
         if (string.IsNullOrWhiteSpace(finalDirectoryName))
         {
-            throw new ArgumentException("Destination path must name a bundle directory.", nameof(destinationPath));
+            throw new ArgumentException("Destination path must name an asset directory.", nameof(destinationPath));
         }
 
         try
         {
-            var builder = new UeSnapshotBuilder(new SqPackUeResourceReader(pack), cancellationToken);
-            var snapshot = builder.Build(characterInfo, displayName, objectKind);
-            if (snapshot == null)
+            var staging = Path.Combine(Path.GetTempPath(), "MeddleNative", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(staging);
+            try
             {
-                throw new UeExportException("Failed to build UE snapshot.", builder.Observations);
+                var settings = new Configuration.ExportConfiguration { PoseMode = Meddle.Plugin.Utils.SkeletonUtils.PoseMode.None, UseDeformer = true };
+                var composer = new Meddle.Plugin.Models.Composer.CharacterComposer(pack, settings, staging, cancellationToken);
+                var scene = new SharpGLTF.Scenes.SceneBuilder();
+                var root = new SharpGLTF.Scenes.NodeBuilder("Character");
+                scene.AddNode(root);
+                if (composer.Compose(characterInfo, scene, root, new Meddle.Plugin.Models.Composer.ExportProgress(characterInfo.Models.Count, "UE assets")) == null)
+                    throw new InvalidDataException("Character composition did not produce a skeleton.");
+                cancellationToken.ThrowIfCancellationRequested();
+                NativeAssetExporter.Export(scene.ToGltf2(), finalDirectory,
+                    string.IsNullOrWhiteSpace(displayName) ? finalDirectoryName : displayName,
+                    Path.Combine(staging, "cache"), token: cancellationToken);
+                return new UeExportResult(finalDirectory);
+            }
+            finally
+            {
+                var stagingRoot = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "MeddleNative")) + Path.DirectorySeparatorChar;
+                if (Path.GetFullPath(staging).StartsWith(stagingRoot, StringComparison.OrdinalIgnoreCase))
+                    Directory.Delete(staging, true);
             }
 
-            var bundle = builder.BuildBundle();
-            UeExportCompleter.Complete(snapshot, bundle, finalDirectory, cancellationToken);
-
-            LogObservations(logger, bundle.Manifest.Observations);
-
-            return new UeExportResult(
-                finalDirectory,
-                bundle.Manifest.Observations);
         }
         catch (OperationCanceledException)
         {
             logger.LogInformation("UE export cancelled.");
             throw;
         }
-        catch (UeExportException)
-        {
-            throw;
-        }
         catch (Exception ex)
         {
             logger.LogError(ex, "UE export failed.");
-            throw new UeExportException("UE export failed unexpectedly.", [], ex);
-        }
-    }
-
-    private static void LogObservations(
-        ILogger<UeCharacterExportService> logger,
-        IReadOnlyList<UeExportObservation> observations)
-    {
-        foreach (var observation in observations)
-        {
-            logger.LogInformation(
-                "UE export observation {Code}: {Message} ({LogicalPath} / {ResolvedPath})",
-                observation.Code,
-                observation.Message,
-                observation.LogicalPath,
-                observation.ResolvedPath);
+            throw;
         }
     }
 

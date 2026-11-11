@@ -1,8 +1,8 @@
 {
     "Author": "Ramen",
     "Name": "Meddle",
-    "Punchline": "Did I mention I'm a model? Export models to glTF format.",
-    "Description": "Export models to glTF format.",
+    "Punchline": "Export models and animations to glTF and UE 5.8.3 assets.",
+    "Description": "Export models to glTF or editable UE 5.8.3 assets. Bake captured skeletal animations and PAP clips in Meddle.",
     "InternalName": "Meddle.Plugin",
     "ApplicableVersion": "any",
     "Tags": [

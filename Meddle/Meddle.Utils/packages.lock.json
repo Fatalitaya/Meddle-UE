@@ -41,6 +41,11 @@
         "resolved": "10.0.1",
         "contentHash": "oIy8fQxxbUsSrrOvgBqlVgOeCtDmrcynnTG+FQufcUWBrwyPfwlUkCDB2vaiBeYPyT+20u9/HeuHeBf+H4F/8g=="
       },
+      "Newtonsoft.Json": {
+        "type": "Transitive",
+        "resolved": "13.0.4",
+        "contentHash": "pdgNNMai3zv51W5aq268sujXUyx7SNdE2bj1wZcWjAQrKMFZV260lbqYop1d2GM67JI1huLRwxo9ZqnfF/lC6A=="
+      },
       "SharpGLTF.Runtime": {
         "type": "Transitive",
         "resolved": "1.0.5",
@@ -59,6 +64,11 @@
         "resolved": "3.119.0",
         "contentHash": "IwC9yx36lOdXVT2DjgmWHl1qkVspfj8ctd4+li8CNnvqdfaTolXCOh6TLznURcPAvzatx9K/tLOB7zT6T8EA9w=="
       },
+      "ZstdSharp.Port": {
+        "type": "Transitive",
+        "resolved": "0.8.1",
+        "contentHash": "19tNz33kn2EkyViFXuxfVn338UJaRmkwBphVqP2dVJIYQUQgFrgG5h061mxkRRg1Ax6r+6WOj1FxaFZ5qaWqqg=="
+      },
       "meddle.formats": {
         "type": "Project",
         "dependencies": {
@@ -69,6 +79,19 @@
         "type": "Project",
         "dependencies": {
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.1, )"
+        }
+      },
+      "meddle.unreal": {
+        "type": "Project",
+        "dependencies": {
+          "UAssetAPI": "[2.0.0, )"
+        }
+      },
+      "uassetapi": {
+        "type": "Project",
+        "dependencies": {
+          "Newtonsoft.Json": "[13.0.4, )",
+          "ZstdSharp.Port": "[0.8.1, )"
         }
       }
     }

@@ -1,0 +1,216 @@
+{
+  "$type": "UAssetAPI.UAsset, UAssetAPI",
+  "Info": "Serialized with UAssetAPI v2.0.0d (05910ba)",
+  "NameMap": [
+    "None"
+  ],
+  "CustomSerializationFlags": "None",
+  "UseSeparateBulkDataFiles": false,
+  "IsUnversioned": false,
+  "FileVersionLicenseeUE": 0,
+  "GameSpecificOverride": "None",
+  "ObjectVersion": "VER_UE4_CORRECT_LICENSEE_FLAG",
+  "ObjectVersionUE5": "IMPORT_TYPE_HIERARCHIES",
+  "CustomVersionContainer": [
+    {
+      "$type": "UAssetAPI.CustomVersion, UAssetAPI",
+      "Name": null,
+      "Key": "{12F88B9F-8875-4AFC-A67C-D90C383ABD29}",
+      "FriendlyName": "FRenderingObjectVersion",
+      "Version": 49,
+      "IsSerialized": true
+    },
+    {
+      "$type": "UAssetAPI.CustomVersion, UAssetAPI",
+      "Name": null,
+      "Key": "{29E575DD-E0A3-4627-9D10-D276232CDCEA}",
+      "FriendlyName": "FAnimPhysObjectVersion",
+      "Version": 17,
+      "IsSerialized": true
+    },
+    {
+      "$type": "UAssetAPI.CustomVersion, UAssetAPI",
+      "Name": null,
+      "Key": "{375EC13C-06E4-48FB-B500-84F0262A717E}",
+      "FriendlyName": "FCoreObjectVersion",
+      "Version": 4,
+      "IsSerialized": true
+    },
+    {
+      "$type": "UAssetAPI.CustomVersion, UAssetAPI",
+      "Name": null,
+      "Key": "{5579F886-933A-4C1F-83BA-087B6361B92F}",
+      "FriendlyName": "FRecomputeTangentCustomVersion",
+      "Version": 2,
+      "IsSerialized": true
+    },
+    {
+      "$type": "UAssetAPI.CustomVersion, UAssetAPI",
+      "Name": null,
+      "Key": "{601D1886-AC64-4F84-AA16-D3DE0DEAC7D6}",
+      "FriendlyName": "FFortniteMainBranchObjectVersion",
+      "Version": 268,
+      "IsSerialized": true
+    },
+    {
+      "$type": "UAssetAPI.CustomVersion, UAssetAPI",
+      "Name": null,
+      "Key": "{612FBE52-DA53-400B-910D-4F919FB1857C}",
+      "FriendlyName": "FOverlappingVerticesCustomVersion",
+      "Version": 1,
+      "IsSerialized": true
+    },
+    {
+      "$type": "UAssetAPI.CustomVersion, UAssetAPI",
+      "Name": null,
+      "Key": "{697DD581-E64F-41AB-AA4A-51ECBEB7B628}",
+      "FriendlyName": "FUE5MainStreamObjectVersion",
+      "Version": 123,
+      "IsSerialized": true
+    },
+    {
+      "$type": "UAssetAPI.CustomVersion, UAssetAPI",
+      "Name": null,
+      "Key": "{92738C43-2988-4D9C-9A3D-9BBE6EFF9FC0}",
+      "FriendlyName": null,
+      "Version": 5,
+      "IsSerialized": true
+    },
+    {
+      "$type": "UAssetAPI.CustomVersion, UAssetAPI",
+      "Name": null,
+      "Key": "{9C54D522-A826-4FBE-9421-074661B482D0}",
+      "FriendlyName": "FReleaseObjectVersion",
+      "Version": 44,
+      "IsSerialized": true
+    },
+    {
+      "$type": "UAssetAPI.CustomVersion, UAssetAPI",
+      "Name": null,
+      "Key": "{9DFFBCD6-494F-0158-E221-12823C92A888}",
+      "FriendlyName": "FEnterpriseObjectVersion",
+      "Version": 11,
+      "IsSerialized": true
+    },
+    {
+      "$type": "UAssetAPI.CustomVersion, UAssetAPI",
+      "Name": null,
+      "Key": "{AF43A65D-7FD3-4947-9873-3E8ED9C1BB05}",
+      "FriendlyName": "FAnimObjectVersion",
+      "Version": 15,
+      "IsSerialized": true
+    },
+    {
+      "$type": "UAssetAPI.CustomVersion, UAssetAPI",
+      "Name": null,
+      "Key": "{CFFC743F-43B0-4480-9391-14DF171D2073}",
+      "FriendlyName": "FFrameworkObjectVersion",
+      "Version": 37,
+      "IsSerialized": true
+    },
+    {
+      "$type": "UAssetAPI.CustomVersion, UAssetAPI",
+      "Name": null,
+      "Key": "{D78A4A00-E858-4697-BAA8-19B5487D46B4}",
+      "FriendlyName": "FSkeletalMeshCustomVersion",
+      "Version": 18,
+      "IsSerialized": true
+    },
+    {
+      "$type": "UAssetAPI.CustomVersion, UAssetAPI",
+      "Name": null,
+      "Key": "{D89B5E42-24BD-4D46-8412-ACA8DF641779}",
+      "FriendlyName": "FUE5ReleaseStreamObjectVersion",
+      "Version": 68,
+      "IsSerialized": true
+    },
+    {
+      "$type": "UAssetAPI.CustomVersion, UAssetAPI",
+      "Name": null,
+      "Key": "{E4B068ED-F494-42E9-A231-DA0B2E46BB41}",
+      "FriendlyName": "FEditorObjectVersion",
+      "Version": 40,
+      "IsSerialized": true
+    },
+    {
+      "$type": "UAssetAPI.CustomVersion, UAssetAPI",
+      "Name": null,
+      "Key": "{F2AED0AC-9AFE-416F-8664-AA7FFA26D6FC}",
+      "FriendlyName": "FNiagaraObjectVersion",
+      "Version": 1,
+      "IsSerialized": true
+    }
+  ],
+  "SoftObjectPathList": [],
+  "GatherableTextData": null,
+  "Exports": [],
+  "SearchableNames": {
+    "$type": "System.Collections.Generic.SortedDictionary`2[[UAssetAPI.UnrealTypes.FPackageIndex, UAssetAPI],[System.Collections.Generic.List`1[[UAssetAPI.UnrealTypes.FName, UAssetAPI]], System.Private.CoreLib]], System.Collections"
+  },
+  "ImportTypeHierarchies": [],
+  "MetaData": {
+    "$type": "UAssetAPI.UnrealTypes.FMetaData, UAssetAPI",
+    "ObjectMetaDataMap": [],
+    "RootMetaDataMap": []
+  },
+  "Thumbnails": null,
+  "WorldTileInfo": null,
+  "AppendedNullBytes": 0,
+  "OtherAssetsFailedToAccess": [],
+  "LegacyFileVersion": -9,
+  "DataResourceVersion": "Invalid",
+  "DataResources": null,
+  "UsesEventDrivenLoader": false,
+  "WillSerializeNameHashes": true,
+  "Imports": [],
+  "DependsMap": [],
+  "SoftPackageReferenceList": [],
+  "AssetRegistryDependencyDataOffset": 0,
+  "AssetRegistryRecords": [],
+  "ImportBits": [],
+  "SoftPackageBits": [],
+  "ExtraPackageDependencies": [],
+  "BulkData": null,
+  "AdditionalFiles": "wYMqng==",
+  "Trailer": "",
+  "Generations": [],
+  "PackageGuid": "{00000000-0000-0000-0000-000000000000}",
+  "PersistentGuid": "{1CD8CAE3-4AF5-0730-C5DF-CBBAABB29BB0}",
+  "RecordedEngineVersion": {
+    "$type": "UAssetAPI.FEngineVersion, UAssetAPI",
+    "Major": 5,
+    "Minor": 8,
+    "Patch": 3,
+    "Changelist": 0,
+    "Branch": null
+  },
+  "RecordedCompatibleWithEngineVersion": {
+    "$type": "UAssetAPI.FEngineVersion, UAssetAPI",
+    "Major": 5,
+    "Minor": 8,
+    "Patch": 3,
+    "Changelist": 0,
+    "Branch": null
+  },
+  "ChunkIDs": [],
+  "PackageSource": 0,
+  "FolderName": "/Game/Meddle/Package",
+  "LocalizationId": "",
+  "SoftObjectPathsCount": 0,
+  "SoftObjectPathsOffset": 0,
+  "SearchableNamesOffset": 0,
+  "ThumbnailTableOffset": 0,
+  "ImportTypeHierarchiesCount": 0,
+  "ImportTypeHierarchiesOffset": 0,
+  "SavedHash": "AAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+  "CompressionFlags": 0,
+  "AdditionalPackagesToCook": [],
+  "NamesReferencedFromExportDataCount": 0,
+  "PayloadTocOffset": -1,
+  "DataResourceOffset": 0,
+  "doWeHaveAssetRegistryData": true,
+  "doWeHaveWorldTileInfo": false,
+  "PackageFlags": "PKG_None",
+  "HasUnversionedProperties": false,
+  "IsFilterEditorOnly": false
+}

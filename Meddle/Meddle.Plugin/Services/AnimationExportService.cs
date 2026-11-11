@@ -33,6 +33,7 @@ public class AnimationExportService : IDisposable, IService
     {
         try
         {
+            if (frames.Count < 2) throw new InvalidOperationException("Capture at least two animation frames before exporting.");
             var boneSets = SkeletonUtils.GetAnimatedBoneMap(frames.ToArray(), settings);
             var startTime = frames.Min(x => x.Item1);
             //var folder = GetPathForOutput();
@@ -52,17 +53,15 @@ public class AnimationExportService : IDisposable, IService
                     foreach (var (frameTime, attach) in timeline)
                     {
                         if (token.IsCancellationRequested) return;
-                        var pos = attach.Transform.Translation;
-                        var rot = attach.Transform.Rotation;
-                        var scale = attach.Transform.Scale;
+                        var matrix = SkeletonUtils.ToMatrix(attach.Transform);
                         var time = SkeletonUtils.TotalSeconds(frameTime, startTime);
                         var boneTransform = SkeletonUtils.GetBoneTransform(attach.Skeleton, root);
                         if (boneTransform != null)
                         {
-                            pos += boneTransform.Value.Translation;
-                            rot = boneTransform.Value.Rotation * rot;
-                            scale *= boneTransform.Value.Scale;
+                            matrix = SkeletonUtils.ToMatrix(boneTransform.Value) * matrix;
                         }
+                        if (!Matrix4x4.Decompose(matrix, out var scale, out var rot, out var pos))
+                            throw new InvalidDataException("Captured root transform cannot be decomposed.");
                         
                         if (!settings.IncludeAbsolutePosition)
                         {
@@ -77,8 +76,12 @@ public class AnimationExportService : IDisposable, IService
                 scene.AddNode(rootNode);
                 scene.AddSkinnedMesh(GetDummyMesh(), Matrix4x4.Identity, bones.Cast<NodeBuilder>().ToArray());
                 var sceneGraph = scene.ToGltf2();
-                var outputPath = Path.Combine(folder, $"motion_{id}.gltf");
-                sceneGraph.SaveGLTF(outputPath);
+                if (settings.NativeAssets)
+                    Meddle.Utils.Export.Ue.NativeAssetExporter.Export(sceneGraph, folder, $"Motion_{id}",
+                        fps: settings.FramesPerSecond, meshes: false, token: token,
+                        inPlace: !settings.IncludePositionalData, relativeMotion: !settings.IncludeAbsolutePosition);
+                else
+                    sceneGraph.SaveGLTF(Path.Combine(folder, $"motion_{id}.gltf"));
             }
 
             ExportUtil.OpenExportFolderInExplorer(folder, config, token);

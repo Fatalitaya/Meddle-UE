@@ -5,6 +5,12 @@
 
 This project is a Dalamud plugin which provides a GUI for exporting player models from FFXIV.
 
+This fork also writes editable UE 5.8.3 Skeleton, SkeletalMesh, AnimSequence,
+Texture2D and Material assets directly from Meddle. It supports captured final-pose
+animation and PAP/SKLB clip baking. See [UE export and validation](docs/UE_EXPORT_SCHEMA.md)
+for usage, supported material features and verification status. Initialize the
+`third_party/UAssetAPI` submodule before building.
+
 - [Installation](#installation)
 - [Releases](https://github.com/PassiveModding/Meddle/releases)
 - [MeddleTools Blender Addon](https://github.com/PassiveModding/MeddleTools)

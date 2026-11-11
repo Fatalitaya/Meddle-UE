@@ -21,6 +21,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\Meddle.Formats\Meddle.Formats.csproj" />
+        <ProjectReference Include="..\Meddle.Unreal\Meddle.Unreal.csproj" />
     </ItemGroup>
 
     <ItemGroup>

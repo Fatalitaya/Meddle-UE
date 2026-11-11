@@ -119,27 +119,6 @@ public static class SkeletonUtils
     }
     
 
-    private static void ApplyPose(
-        BoneNodeBuilder bone,
-        BoneNodeBuilder root,
-        AttachSet attachSet,
-        PoseMode poseMode,
-        float time)
-    {
-        if (poseMode == PoseMode.None)
-        {
-            return; // no pose applied
-        }
-        
-        var boneTransform = GetBoneTransform(attachSet.Skeleton, bone);
-        if (boneTransform == null)
-        {
-            return;
-        }
-        
-        AddBoneKeyframe(bone, poseMode, time, boneTransform.Value);
-    }
-    
     public static List<BoneNodeBuilder> GetBoneMap(ParsedSkeleton skeleton, PoseMode poseMode, out BoneNodeBuilder? root)
     {
         var maps = GetBoneMaps(skeleton, poseMode);
@@ -211,8 +190,8 @@ public static class SkeletonUtils
             return; // no frames for this attach
         }
 
-        // Track last transform and last frame time for each bone
-        var lastTransforms = new Dictionary<string, (AffineTransform Transform, float Time, bool KeyframeSet)>();
+        // A recording must keep one stable skeleton topology.
+        string[]? topology = null;
         foreach (var time in timeline.Select(x => x.Time).Distinct())
         {
             var frame = timeline.FirstOrDefault(x => x.Time == time);
@@ -220,6 +199,10 @@ public static class SkeletonUtils
 
             // get the bone map for this attach
             var boneMap = GetBoneMap(frame.Attach.Skeleton, PoseMode.None, out var attachRoot);
+            var currentTopology = boneMap.Select(b => $"{b.BoneName}|{b.Parent?.Name}").ToArray();
+            topology ??= currentTopology;
+            if (!topology.SequenceEqual(currentTopology))
+                throw new InvalidOperationException("Skeleton changed during capture. Record each topology separately.");
             if (attachRoot == null)
                 continue;
 
@@ -244,66 +227,12 @@ public static class SkeletonUtils
                     bone = attachBone;
                 }
 
-                // Keyframe logic
-                var boneName = attachBone.BoneName;
-                if (!lastTransforms.TryGetValue(boneName, out var value) || IsLastFrameInTimeline(timeline, frame.Time))
-                {
-                    ApplyPose(bone, attachRoot, frame.Attach, PoseMode.Local, frameTime);
-                    lastTransforms[boneName] = (currentTransform.Value, frameTime, true);
-                }
-                else
-                {
-                    var (lastTransform, lastTime, keyframeSet) = value;
-
-                    if (IsSameTransform(currentTransform.Value, lastTransform))
-                    {
-                        // No change, just update last info
-                        lastTransforms[boneName] = (lastTransform, frameTime, keyframeSet);
-                        continue;
-                    }
-                    // Change detected
-                    if (!keyframeSet)
-                    {
-                        // Add keyframe for last frame
-                        ApplyPose(bone, attachRoot, frame.Attach, PoseMode.Local, lastTime);
-                    }
-                    // Add keyframe for current frame
-                    ApplyPose(bone, attachRoot, frame.Attach, PoseMode.Local, frameTime);
-                    lastTransforms[boneName] = (currentTransform.Value, frameTime, true);
-                }
+                // Preserve every captured final pose. Dropping constant samples can turn
+                // a held pose into a ramp when the next sample changes.
+                AddBoneKeyframe(bone, PoseMode.Local, frameTime, currentTransform.Value);
             }
-
-            // var startPos = firstFrame.Attach.Transform.Translation;
-            // var pos = frame.Attach.Transform.Translation;
-            // var rot = frame.Attach.Transform.Rotation;
-            // var scale = frame.Attach.Transform.Scale;
-            // var relativeTranslation = pos - startPos;
-            // attachRoot.UseScale().UseTrackBuilder("root").WithPoint(frameTime, scale);
-            // attachRoot.UseRotation().UseTrackBuilder("root").WithPoint(frameTime, rot);
-            // attachRoot.UseTranslation().UseTrackBuilder("root").WithPoint(frameTime, relativeTranslation);
-            
-            // if (settings.IncludePositionalData)
-            // {
-            //     // If positional data is included, apply the translation and rotation to the root
-            //
-            //     if (!settings.IncludeAbsolutePosition)
-            //     {
-            //         pos -= startPos;
-            //     }
-            //     
-            //     attachRoot.UseScale().UseTrackBuilder("pose").WithPoint(frameTime, scale);
-            //     attachRoot.UseRotation().UseTrackBuilder("pose").WithPoint(frameTime, rot);
-            //     attachRoot.UseTranslation().UseTrackBuilder("pose").WithPoint(frameTime, pos);
-            // }
-            
             attachDict[attachId] = attachBoneMap;
         }
-    }
-    
-    private static bool IsLastFrameInTimeline(
-        List<(DateTime Time, AttachSet Attach)> timeline, DateTime time)
-    {
-        return timeline.LastOrDefault().Time == time;
     }
     
     private static void AddBoneKeyframe(BoneNodeBuilder bone, PoseMode poseMode, float time, AffineTransform transform)
@@ -315,29 +244,6 @@ public static class SkeletonUtils
             bone.UseRotation().UseTrackBuilder("pose").WithPoint(time, transform.Rotation);
             bone.UseTranslation().UseTrackBuilder("pose").WithPoint(time, transform.Translation);
         }
-    }
-
-    // Helper to compare transforms with tolerance
-    private static bool IsSameTransform(AffineTransform current, AffineTransform previous, float tolerance = 0.0001f)
-    {
-        return IsVectorSame(current.Scale, previous.Scale, tolerance) &&
-               IsQuaternionSame(current.Rotation, previous.Rotation, tolerance) &&
-               IsVectorSame(current.Translation, previous.Translation, tolerance);
-    }
-
-    private static bool IsVectorSame(System.Numerics.Vector3 a, System.Numerics.Vector3 b, float tolerance)
-    {
-        return Math.Abs(a.X - b.X) < tolerance &&
-               Math.Abs(a.Y - b.Y) < tolerance &&
-               Math.Abs(a.Z - b.Z) < tolerance;
-    }
-
-    private static bool IsQuaternionSame(System.Numerics.Quaternion a, System.Numerics.Quaternion b, float tolerance)
-    {
-        return Math.Abs(a.X - b.X) < tolerance &&
-               Math.Abs(a.Y - b.Y) < tolerance &&
-               Math.Abs(a.Z - b.Z) < tolerance &&
-               Math.Abs(a.W - b.W) < tolerance;
     }
 
     public static Matrix4x4 ToMatrix(AffineTransform t) =>

@@ -25,6 +25,9 @@
         <ProjectReference Include="..\Meddle.Formats\Meddle.Formats.csproj"/>
         <ProjectReference Include="..\Meddle.SqPack\Meddle.SqPack.csproj"/>
     </ItemGroup>
+    <ItemGroup>
+        <None Include="..\..\third_party\UAssetAPI\LICENSE" Link="UAssetAPI.LICENSE" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
 
     <PropertyGroup>
         <Use_Custom_ClientStructs>false</Use_Custom_ClientStructs>
