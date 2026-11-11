@@ -113,10 +113,11 @@ public static class ImageUtils
 
                 bitmap.InstallPixels(info, (IntPtr)data, image.Width * 4);
 
-                var str = new SKDynamicMemoryWStream();
+                using var str = new SKDynamicMemoryWStream();
                 bitmap.Encode(str, SKEncodedImageFormat.Png, 100);
 
-                return str.DetachAsData().AsSpan();
+                using var png = str.DetachAsData();
+                return png.ToArray();
             }
         }
     }
@@ -279,12 +280,13 @@ public static class ImageUtils
 
     public static SkTexture ToTexture(this TextureResource resource, (int width, int height)? resize = null)
     {
-        var bitmap = resource.ToBitmap();
+        using var bitmap = resource.ToBitmap();
 
         if (resize != null)
         {
-            bitmap = bitmap.Resize(new SKImageInfo(resize.Value.width, resize.Value.height, SKColorType.Rgba8888, SKAlphaType.Unpremul),
+            using var resized = bitmap.Resize(new SKImageInfo(resize.Value.width, resize.Value.height, SKColorType.Rgba8888, SKAlphaType.Unpremul),
                                    new SKSamplingOptions(SKCubicResampler.Mitchell));
+            return new SkTexture(resized);
         }
 
         return new SkTexture(bitmap);

@@ -18,6 +18,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly ILogger pluginLog;
     public static ILogger<Plugin> Logger { get; private set; } = NullLogger<Plugin>.Instance;
     public static INotificationManager NotificationManager { get; private set; } = null!;
+    public static PathService PathService { get; private set; } = null!;
 
     public Plugin(IDalamudPluginInterface pluginInterface)
     {
@@ -54,18 +55,21 @@ public sealed class Plugin : IDalamudPlugin
             host.ConfigureServices(services =>
             {
                 services.Configure<ConsoleLifetimeOptions>(options => options.SuppressStatusMessages = true);
+                var packDir = Path.GetDirectoryName(Environment.ProcessPath) ?? Environment.CurrentDirectory;
+                pluginLog.LogInformation("Getting SqPack at {Path}", packDir);
                 service.RegisterServices(services);
             services
                     .AddServices(pluginInterface)
                     .AddSingleton(config)
                     .AddUi()
-                    .AddSingleton(new SqPack.SqPack(Environment.CurrentDirectory));
+                    .AddSingleton(new SqPack.SqPack(packDir));
             });
 
             app = host.Build();
             Logger = app.Services.GetRequiredService<ILogger<Plugin>>();
             NotificationManager = app.Services.GetRequiredService<INotificationManager>();
             Meddle.SqPack.Global.Logger = app.Services.GetRequiredService<ILogger<Meddle.SqPack.Global>>();
+            PathService = app.Services.GetRequiredService<PathService>();
             NativeDll.Initialize(app.Services.GetRequiredService<IDalamudPluginInterface>().AssemblyLocation.DirectoryName);
             var pack = app.Services.GetRequiredService<SqPack.SqPack>();
             pack.RsfData = config.RsfConfig.GetRsfData();

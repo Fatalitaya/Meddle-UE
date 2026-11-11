@@ -854,7 +854,10 @@ public unsafe class LiveCharacterTab : ITab
                                                     var fileName = Path.GetFileNameWithoutExtension(name);
                                                     var filePath = Path.Combine(path, $"{fileName}.png");
                                                     using var memoryStream = new MemoryStream();
-                                                    tex.Bitmap.Encode(memoryStream, SKEncodedImageFormat.Png, 100);
+                                                    using (var bitmap = tex.Bitmap)
+                                                    {
+                                                        bitmap.Encode(memoryStream, SKEncodedImageFormat.Png, 100);
+                                                    }
                                                     var textureBytes = memoryStream.ToArray();
                                                     File.WriteAllBytes(filePath, textureBytes);
                                                 }
@@ -934,7 +937,10 @@ public unsafe class LiveCharacterTab : ITab
                 var gpuTex = DxHelper.ExportTextureResource(textureEntry.Texture->Texture);
                 var textureData = gpuTex.Resource.ToTexture();
                 using var memoryStream = new MemoryStream();
-                textureData.Bitmap.Encode(memoryStream, SKEncodedImageFormat.Png, 100);
+                using (var bitmap = textureData.Bitmap)
+                {
+                    bitmap.Encode(memoryStream, SKEncodedImageFormat.Png, 100);
+                }
                 var textureBytes = memoryStream.ToArray();
 
                 fileDialog.SaveFileDialog("Save Texture", "PNG Image{.png}", defaultFileName, ".png",
@@ -997,7 +1003,8 @@ public unsafe class LiveCharacterTab : ITab
             var wrap = textureCache.GetOrAdd($"{(nint)textureEntry.Texture->Texture}", () =>
             {
                 var gpuTex = DxHelper.ExportTextureResource(textureEntry.Texture->Texture);
-                var textureData = gpuTex.Resource.ToBitmap().GetPixelSpan();
+                using var bitmap = gpuTex.Resource.ToBitmap();
+                var textureData = bitmap.GetPixelSpan();
                 var wrap = textureProvider.CreateFromRaw(
                     RawImageSpecification.Rgba32((int)gpuTex.Resource.Width, (int)gpuTex.Resource.Height), textureData,
                     $"Meddle_{(nint)textureEntry.Texture->Texture}_{textureFileName}");

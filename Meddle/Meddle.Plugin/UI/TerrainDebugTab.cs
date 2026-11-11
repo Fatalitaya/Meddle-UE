@@ -35,7 +35,7 @@ public class TerrainDebugTab : ITab
             UiUtil.Text($"GfxTerrain: {(nint)terrainPtr->GfxTerrain:X8}", $"{(nint)terrainPtr->GfxTerrain:X8}");
             if (terrainPtr->GfxTerrain == null) continue;
 
-            using var tree = ImRaii.TreeNode($"Terrain Resource Handle: {(nint)terrainPtr->GfxTerrain->ResourceHandle:X8}");
+            using var tree = ImRaii.TreeNode($"Terrain Resource Handle: {(nint)terrainPtr->GfxTerrain->TerrainResourceHandle:X8}");
             if (tree)
             {
                 var terrainStruct = (Terrain*)terrainPtr->GfxTerrain;

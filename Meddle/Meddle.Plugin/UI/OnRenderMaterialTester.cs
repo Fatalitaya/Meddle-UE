@@ -52,7 +52,8 @@ public class OnRenderMaterialTester : ITab
             {
                 var wrap = textureCache.GetOrAdd($"{output.DecalTexture.GetHashCode()}", () =>
                 {
-                    var textureData = output.DecalTexture.Bitmap.GetPixelSpan();
+                    using var bitmap = output.DecalTexture.Bitmap;
+                    var textureData = bitmap.GetPixelSpan();
                     var wrap = textureProvider.CreateFromRaw(
                         RawImageSpecification.Rgba32(output.DecalTexture.Width, output.DecalTexture.Height), textureData,
                         $"Meddle_Decal_{output.DecalTexture.GetHashCode()}");
