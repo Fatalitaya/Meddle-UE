@@ -24,7 +24,8 @@ public static class NativeAssetExporter
         var package = "/Game/Meddle/" + name;
         var folder = Path.Combine(destination, "Content", "Meddle", name);
         Directory.CreateDirectory(folder);
-        string FileFor(string asset) => Path.Combine(folder, asset + ".uasset");
+        string FileFor(string category, string asset) => Path.Combine(folder, category, asset + ".uasset");
+        string PackageFor(string category, string asset) => package + "/" + category + "/" + asset;
         var materials = new Dictionary<Material, string>();
         if (meshes)
         foreach (var material in scene.LogicalMaterials)
@@ -68,15 +69,16 @@ public static class NativeAssetExporter
                     }
                 }
                 if (isNormal) for (var i = 1; i < bytes.Length; i += 4) bytes[i] = (byte)(255 - bytes[i]);
-                TextureWriter.Write(FileFor(texName), package + "/" + texName, bitmap.Width, bitmap.Height, bytes, isDiffuse, isNormal);
-                if (isDiffuse) diffuse ??= package + "/" + texName;
-                if (isNormal) normal ??= package + "/" + texName;
+                var texturePath = PackageFor("Textures", texName);
+                TextureWriter.Write(FileFor("Textures", texName), texturePath, bitmap.Width, bitmap.Height, bytes, isDiffuse, isNormal);
+                if (isDiffuse) diffuse ??= texturePath;
+                if (isNormal) normal ??= texturePath;
             }
-            MaterialWriter.Write(FileFor(matName), package + "/" + matName,
+            MaterialWriter.Write(FileFor("Materials", matName), PackageFor("Materials", matName),
                 new AssetMaterial(diffuse == null ? tint : Vector4.One, 0, 0.6f, diffuse, normal,
                     TwoSided: metadata?["RenderBackfaces"]?.GetValue<bool>() ?? material.DoubleSided,
                     AlphaMode: metadata?["IsTransparent"]?.GetValue<bool>() == true ? "BLEND" : "OPAQUE"));
-            materials[material] = package + "/" + matName;
+            materials[material] = PackageFor("Materials", matName);
         }
 
         foreach (var skin in scene.LogicalSkins)
@@ -107,7 +109,7 @@ public static class NativeAssetExporter
                 }
                 bones.Add(new(joint.Name ?? $"Bone_{joint.LogicalIndex}", parent == null ? 0 : Array.IndexOf(ordered, parent) + 1, Coordinates.Transform(local)));
             }
-            var (skeletonPath, guid) = SkeletonIdentity.Write(destination, bones);
+            var (skeletonPath, guid) = SkeletonIdentity.Write(destination, bones, name);
             if (meshes)
             {
                 var sections = new List<AssetSection>();
@@ -167,8 +169,8 @@ public static class NativeAssetExporter
                     sections.Add(new(primitive.Material?.Name ?? "Material", primitive.Material == null ? null : materials[primitive.Material], vertices, indices));
                     vertexOffset += (uint)vertices.Length;
                 }
-                var meshName = $"SK_{skin.LogicalIndex}";
-                SkeletalMeshWriter.Write(FileFor(meshName), package + "/" + meshName, skeletonPath, new(bones.ToArray(), sections.ToArray(),
+                var meshName = $"SK_{name}_{skin.LogicalIndex}";
+                SkeletalMeshWriter.Write(FileFor("Meshes", meshName), PackageFor("Meshes", meshName), skeletonPath, new(bones.ToArray(), sections.ToArray(),
                     morphs.Select(m => new AssetMorph(m.Key, m.Value.Deltas.ToArray(), m.Value.Sections.ToArray())).ToArray()));
             }
             foreach (var animation in scene.LogicalAnimations)
@@ -192,10 +194,10 @@ public static class NativeAssetExporter
                     }
                     tracks[j + 1] = new(j + 1, keys);
                 }
-                var animName = $"A_{skin.LogicalIndex}_{animation.LogicalIndex}";
+                var animName = $"A_{name}_{SafeName(animation.Name ?? "Animation")}_{skin.LogicalIndex}_{animation.LogicalIndex}";
                 var baked = new BakedAnimation(fps, count, tracks);
                 if (inPlace.HasValue) RootMotion.Extract(bones, baked, inPlace.Value, relativeMotion);
-                AnimationWriter.Write(FileFor(animName), package + "/" + animName, skeletonPath, guid, bones, baked, inPlace == false);
+                AnimationWriter.Write(FileFor("Animations", animName), PackageFor("Animations", animName), skeletonPath, guid, bones, baked, inPlace == false);
             }
         }
     }

@@ -23,12 +23,19 @@ for fps in [30,60]:
         pose = unreal.AnimationLibrary.get_bone_pose_for_time(animation, 'root', time, False)
         assert abs(pose.translation.z-time*100) < .01, (time, pose)
     assert unreal.EditorAssetLibrary.save_loaded_asset(animation, False)
-adapter = load('/Game/Meddle/Adapter/A_0_0', unreal.AnimSequence)
-adapter_mesh = load('/Game/Meddle/Adapter/SK_0', unreal.SkeletalMesh)
+adapter = load('/Game/Meddle/Adapter/Animations/A_Adapter_Move_0_0', unreal.AnimSequence)
+adapter_mesh = load('/Game/Meddle/Adapter/Meshes/SK_Adapter_0', unreal.SkeletalMesh)
 assert editor.get_num_verts(adapter_mesh, 0) == 3
+adapter_skeleton = adapter_mesh.get_editor_property('skeleton')
+assert adapter_skeleton.get_path_name().startswith('/Game/Meddle/Adapter/Skeletons/')
+assert adapter.get_editor_property('skeleton') == adapter_skeleton
+adapter_material = load('/Game/Meddle/Adapter/Materials/M_0_Body', unreal.Material)
+assert adapter_mesh.get_editor_property('materials')[0].material_interface == adapter_material
 pose = unreal.AnimationLibrary.get_bone_pose_for_time(adapter, 'root', .5, False)
 assert abs(pose.translation.z-50) < .01, pose
-motion = load('/Game/Meddle/RootMotion/A_0_0', unreal.AnimSequence)
+motion = load('/Game/Meddle/RootMotion/Animations/A_RootMotion_Move_0_0', unreal.AnimSequence)
+assert motion.get_editor_property('skeleton') != adapter_skeleton
+assert motion.get_editor_property('skeleton').get_path_name().startswith('/Game/Meddle/RootMotion/Skeletons/')
 assert motion.get_editor_property('enable_root_motion')
 pose = unreal.AnimationLibrary.get_bone_pose_for_time(motion, 'Meddle_Root', .5, False)
 assert abs(pose.translation.z-50) < .01, pose

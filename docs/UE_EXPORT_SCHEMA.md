@@ -9,7 +9,20 @@
 - **Animation → Bake PAP to UE assets**：输入本地 PAP 和匹配 SKLB 的完整文件路径，选择 30/60 fps、原地或根运动，烘焙全部命名片段。此处“离线”指不播放片段；仍须在运行中的 FFXIV/Dalamud 内使用游戏 Havok 解码器。
 - 将输出目录中的 `Content/Meddle` 整体复制到 UE 项目的 `Content/Meddle`，然后打开编辑器。保留相对路径；如需移动资产，在 UE 内容浏览器中移动以维护引用。
 
-资产包路径固定在 `/Game/Meddle`。相同拓扑与参考姿态的骨架通过签名共享，路径为 `Skeletons/SKEL_<sha256>`。不同参考姿态或附件骨架产生独立 Skeleton；需要时使用 UE 的标准重定向功能。
+资产包路径固定在 `/Game/Meddle`，每个角色或动画组按以下目录组织：
+
+```text
+Content/Meddle/<CharacterOrClipGroup>/
+  Meshes/SK_<Character>_<index>.uasset
+  Skeletons/SKEL_<sha256>.uasset
+  Materials/M_<index>_<material>.uasset
+  Textures/T_<index>_<sampler>.uasset
+  Animations/A_<Character>_<clip>_<indices>.uasset
+```
+
+XIV 的角色实例不要求存在一个可直接导出的共享骨架。角色导出根据 Composer 组合后的骨骼层级和蒙皮绑定矩阵构建 Skeleton；签名只在本角色目录内对相同拓扑与参考姿态去重。不同角色目录、参考姿态或附件骨架使用独立 Skeleton。独立导出的 PAP/录制动画不会因此自动绑定到已导出的角色：PAP 的 SKLB 骨架与实例局部骨架之间仍需匹配、映射或使用 UE 标准重定向，不能仅依靠同名骨骼。
+
+新目录布局用于后续导出。已有导出中的文件和内部包引用不会自动迁移，请重新导出到新目录，或在 UE 内容浏览器中移动旧资产。
 
 ## 数据约定
 

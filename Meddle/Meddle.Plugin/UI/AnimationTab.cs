@@ -107,14 +107,14 @@ public class AnimationTab : ITab
                         exportError = null;
                         nativeExportTask = Task.Run(() =>
                         {
-                            var package = "/Game/Meddle/" + name;
-                            var folder = Path.Combine(path, "Content", "Meddle", name);
+                            var package = "/Game/Meddle/" + name + "/Animations";
+                            var folder = Path.Combine(path, "Content", "Meddle", name, "Animations");
                             Directory.CreateDirectory(folder);
-                            var (skeletonPackage, guid) = Meddle.Unreal.SkeletonIdentity.Write(path, baked.Bones);
+                            var (skeletonPackage, guid) = Meddle.Unreal.SkeletonIdentity.Write(path, baked.Bones, name);
                             for (var i = 0; i < baked.Clips.Length; i++)
                             {
                                 var clip = baked.Clips[i];
-                                var asset = $"A_{i}_{Meddle.Utils.Export.Ue.NativeAssetExporter.SafeName(clip.Name)}";
+                                var asset = $"A_{name}_{Meddle.Utils.Export.Ue.NativeAssetExporter.SafeName(clip.Name)}_{i}";
                                 Meddle.Unreal.AnimationWriter.Write(Path.Combine(folder, asset + ".uasset"), package + "/" + asset,
                                     skeletonPackage, guid, baked.Bones, clip.Animation, rootMotion);
                             }

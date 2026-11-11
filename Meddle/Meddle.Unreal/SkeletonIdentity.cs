@@ -23,13 +23,17 @@ public static class SkeletonIdentity
         return Convert.ToHexStringLower(SHA256.HashData(stream.ToArray()));
     }
 
-    public static (string Package, Guid Guid) Write(string destination, IReadOnlyList<AssetBone> bones)
+    public static (string Package, Guid Guid) Write(string destination, IReadOnlyList<AssetBone> bones, string owner)
     {
+        if (string.IsNullOrEmpty(owner) || owner.Any(c => !(char.IsAsciiLetterOrDigit(c) || c == '_')))
+            throw new ArgumentException("Use a sanitized character or clip-group name.", nameof(owner));
         var hash = Hash(bones);
         var asset = "SKEL_" + hash;
-        var package = "/Game/Meddle/Skeletons/" + asset;
+        // A matching signature deduplicates skins within this export, never assumes
+        // that different XIV instances provide a common, interchangeable skeleton.
+        var package = "/Game/Meddle/" + owner + "/Skeletons/" + asset;
         var guid = new Guid(Convert.FromHexString(hash[..32]));
-        SkeletonWriter.Write(Path.Combine(destination, "Content", "Meddle", "Skeletons", asset + ".uasset"), package, bones, guid);
+        SkeletonWriter.Write(Path.Combine(destination, "Content", "Meddle", owner, "Skeletons", asset + ".uasset"), package, bones, guid);
         return (package, guid);
     }
 }
