@@ -13,7 +13,8 @@ public static class NativeAssetExporter
 
     public static void Export(ModelRoot scene, string destination, string name, string? textureCache = null,
         int fps = 30, bool meshes = true, CancellationToken token = default, bool? inPlace = null, bool relativeMotion = true,
-        UeMeshMergeMode mergeMode = UeMeshMergeMode.All)
+        UeMeshMergeMode mergeMode = UeMeshMergeMode.All, bool writeStaticMeshes = true,
+        List<string>? staticMaterialSlots = null)
     {
         if (fps is not (30 or 60)) throw new ArgumentOutOfRangeException(nameof(fps));
         if (meshes && !scene.LogicalNodes.Any(n => n.Mesh != null)) throw new InvalidDataException("Instance contains no mesh geometry.");
@@ -223,7 +224,11 @@ public static class NativeAssetExporter
                     SkeletalMeshWriter.Write(FileFor("Meshes", meshName), PackageFor("Meshes", meshName), skeletonPath, new(bones.ToArray(), sections.ToArray(),
                         morphs.Select(m => new AssetMorph(m.Key, m.Value.Deltas.ToArray(), m.Value.Sections.ToArray())).ToArray()));
                 else
-                    StaticMeshWriter.Write(FileFor("Meshes", meshName), PackageFor("Meshes", meshName), sections.ToArray());
+                {
+                    staticMaterialSlots?.AddRange(sections.Select(s => s.MaterialPath ?? "/Engine/EngineMaterials/DefaultMaterial"));
+                    if (writeStaticMeshes)
+                        StaticMeshWriter.Write(FileFor("Meshes", meshName), PackageFor("Meshes", meshName), sections.ToArray());
+                }
             }
             if (!skinned) continue;
             foreach (var animation in scene.LogicalAnimations)

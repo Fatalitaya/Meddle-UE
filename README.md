@@ -1,109 +1,59 @@
-# Meddle
-<a href="https://ko-fi.com/ramen_au"><img alt="Sponsor Badge" src="https://img.shields.io/badge/Meddle-Sponsor-pink?style=flat"></a>
-<a href="https://github.com/PassiveModding/Meddle/"><img alt="Meddle" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FPassiveModding%2FMeddle%2Frefs%2Fheads%2Fmain%2Frepo.json&query=%24.%5B0%5D.AssemblyVersion&label=Meddle"></a>
-<a href="https://github.com/PassiveModding/MeddleTools/releases"><img alt="MeddleTools" src="https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2FPassiveModding%2FMeddleTools%2Frefs%2Fheads%2Fmain%2FMeddleTools%2Fblender_manifest.toml&query=%24.version&label=MeddleTools"></a>
+# Meddle UE
 
-This project is a Dalamud plugin which provides a GUI for exporting player models from FFXIV.
+面向 **Unreal Engine 5.8.3** 的 Meddle 分支，可从 FFXIV 直接导出可编辑的 UE 资产与 Territory 子关卡。
 
-This fork also writes editable UE 5.8.3 StaticMesh, Skeleton, SkeletalMesh, AnimSequence,
-Texture2D and Material assets directly from Meddle. Character exports include NPCs,
-monsters and attachments; Layout exports include furniture, background models,
-shared groups and terrain plates, with three mesh grouping options. Rigid geometry
-uses StaticMesh; skinned instances use SkeletalMesh. It also supports captured final-pose
-animation and PAP/SKLB clip baking. See [UE export and validation](docs/UE_EXPORT_SCHEMA.md)
-for usage, supported material features and verification status. Initialize the
-`third_party/UAssetAPI` submodule before building.
+**原生 UE 资产导出**
 
-### Building with Visual Studio
+在插件内生成 `StaticMesh`、`Skeleton`、`SkeletalMesh`、`AnimSequence`、`Texture2D`、`Material` ，这些资产的导出无需启动 UE，也不依赖外部 FBX/glTF 导入器。
 
-The projects require .NET 10 and C# 14 (Dalamud SDK 15). Visual Studio 2026
-is the officially supported IDE. For Visual Studio 2022, use 17.14 with a
-separately installed .NET 10.0.1xx SDK; newer SDK feature bands can require
-newer MSBuild versions. VS2022 builds still report `NETSDK1233`, and its editor
-does not fully support this target.
+- 地形、建筑、家具等无蒙皮模型导出为 StaticMesh，保留顶点颜色、法线、切线和最多四组 UV。
+- 角色及其他带蒙皮实例导出为 SkeletalMesh，保留骨架、蒙皮和 MorphTarget。
+- 混合导出按静态与蒙皮类型分别处理，不为静态物件添加虚拟骨架。
 
-Open `Meddle.sln` and select `Debug | x64` or `Release | x64`. Set `DALAMUD_HOME`
-to your Dalamud development library directory. The plugin maps to x64 while
-managed library projects use Any CPU. Package pruning is disabled so VS2022
-and the dotnet CLI can share the dependency lock files without a
-`System.Text.Json` restore failure.
+**角色、附件与动画**
 
-- [Installation](#installation)
-- [Releases](https://github.com/PassiveModding/Meddle/releases)
-- [MeddleTools Blender Addon](https://github.com/PassiveModding/MeddleTools)
-- [Attributions](#attributions)
+角色 UE 导出覆盖玩家、人形 NPC、怪物、坐骑、宠物和可解析的武器/附件。支持全部合并、按部位合并和不合并三种粒度，保留材质槽及附件变换。
 
-> NOTE: For single mesh export and mod creation, use Penumbra. 
-> This plugin is intended for exporting multiple meshes at once, such as for a full character model or an environment.
+- **最终姿态采集**：记录游戏实际输出的骨骼姿态，重采样为 30 或 60 fps 的 AnimSequence。
+- **PAP/SKLB 烘焙**：从匹配的动画与骨架文件生成 UE 动画，支持原地动画或根运动；解码在运行中的游戏插件内完成。
+- 骨架按拓扑与参考姿态识别、复用，存放于对应角色的资产目录。
 
-## Installation
-Meddle is written as a Dalamud plugin and as such, requires that you use FFXIVQuickLauncher to start your game.
-This will enable you to install community-created plugins.
+**完整 Territory 导出**
 
-1. Type the `/xlsettings` command into your chatbox. This will open your Dalamud Settings.
-2. In the window that opens, navigate to the "Experimental" tab. Scroll down to "Custom Plugin Repositories".
-3. Copy and paste the repo URL (seen below) into the input box, making sure to press the "+" button to add it.
-4. Press the "Save and Close" button. This will add Meddle to Dalamud's list of available plugins.
-5. Open the plugin installer by typing the `/xlplugins` command, search for Meddle, and click install.
+独立 Territory 页面支持按区域名称、代号、ID 或资源路径查找关卡，选择场景分支和节庆版本，也可直接导出当前区域。
 
-Repo URL
+导出范围包含地形板块、背景模型、嵌套共享组和事件物件的静态模型，不受附近物件距离或相机裁剪限制。当前区域结合运行时状态保留实际变换、材质替换和染色；其他区域从游戏场景文件读取默认布局。
 
-```
-https://raw.githubusercontent.com/PassiveModding/Meddle/main/repo.json
-```
-
-## Territory export
-
-Open the independent **Territory** tab. Search by level name, code (such as `f1f1`), ID or resource path, then choose its scene version and festival phase and click **导出 Territory**. **直接导出当前区域…** selects the loaded region and its current branches and opens the export destination dialog. Unloaded regions are read directly from the game's LVB/LGB/SGB and terrain files. The menu only lists festival phases present in that scene version. **无节庆** retains common layers and removes festival decorations.
-
-For the currently loaded Territory, **使用当前游戏分支** captures the active scene filter and complete festival combination. Static instances are matched with runtime layer/instance identifiers; loaded models use captured transforms and material changes, while unloaded geometry uses the static layout. This export ignores the overlay distance and camera culling. Refresh the region state after changing zones. Selecting another scene version disables incompatible runtime overrides; selecting another festival keeps only matching layers.
-
-Export supports the existing glTF/GLB and UE asset output. UE output is geometry assets, not a generated `.umap`. Static export includes terrain, background models, nested shared groups and event-object SGB references; NPCs, VFX, lighting and timeline animation are not reconstructed by this path. Missing resources, unsupported entry types and unmatched runtime children are recorded in `territory-report.json`. Unloaded dynamic objects retain their file defaults.
-
-Territory grouping is independent of character mesh grouping:
-
-| Rule | Group boundary |
+| 分组方式 | 导出组织 |
 | --- | --- |
-| 全部合并 | The entire selected scene |
-| 按重复资源合并 (default) | Full model path + replacement material path/slot + stain ID; every occurrence is retained |
-| 按场景层分组 | Source layout file + group/layer ID; nested SGB geometry inherits its containing scene layer, terrain has its own group |
-| 逐实例导出 | Each placed model instance; shared groups are expanded and terrain plates are separate |
+| 全部合并 | 整个所选区域一组 |
+| 按重复资源合并 | 按模型完整路径、替换材质及染色等外观归组，保留每次摆放 |
+| 按场景层分组 | 按布局文件和场景层归组，地形单独成组 |
+| 逐实例导出 | 每个展开后的子模型或地形板块独立成组 |
 
-UE bakes each group into one mesh at its world positions; repeated-resource grouping is not ISM/HISM instancing and does not remove repeated placements or weld vertices. glTF/GLB writes one scene file per group and retains its internal nodes. Terrain plates participate with their individual model paths and positions. `territory-groups.json` records the selected rule, output group names and occurrence counts. Material-only and filename-only grouping are deliberately not used: different model paths, material replacements and stains remain distinguishable in repeated-resource mode.
+Territory 静态场景导出不重建 NPC、VFX、灯光或时间轴动画。缺失资源、未支持类型和未匹配动态子项会写入导出报告。
 
-Developer validation: `dotnet test Meddle/Meddle.Utils.Tests --filter FullyQualifiedName~TerritorySceneTests`. To inspect installed scene data without launching the game, run `dotnet run --project tools/TerritoryProbe -- <game directory> [bg/.../level/scene.lvb]`. Without a scene path, the probe follows all TerritoryType scene references and reports missing files separately from parse failures.
+**UE 子关卡与实例化**
 
-## Attributions
-Much of this code is from or based on the following projects and wouldn't have been possible without them:
-- [Xande](https://github.com/xivdev/Xande) [[GNU AGPL v3](https://github.com/xivdev/Xande/blob/main/LICENSE)]
-  - PBD file structure
-  - MeshBuilder
-  - RaceDeformer
-  - Havok Skeletons
-- [Penumbra](https://github.com/xivdev/Penumbra) 
-  - shader comp logic
-  - vertex type info
-  - SpanBinaryReader
-- [Lumina](https://github.com/NotAdam/Lumina/)
-  - file structures
-- [SaintCoinach](https://github.com/xivapi/SaintCoinach)
-  - terrain and level file structures
-- [Alpha](https://github.com/NotNite/Alpha) [[MIT](https://github.com/NotNite/Alpha/blob/main/LICENSE)]
-  - initial reference for Meddle.UI project setup and draw logic 
-- [PathFinder](https://github.com/chirpxiv/ffxiv-pathfinder) [[MIT](https://github.com/chirpxiv/ffxiv-pathfinder/blob/main/LICENSE)]
-  - 🐇
-  - reference for world overlay logic
-- [Ktisis](https://github.com/ktisis-tools/Ktisis) [[GNU GPL v3](https://github.com/ktisis-tools/Ktisis/blob/main/LICENSE)]
-  - lighting structs
-  - hkQsTransformf matrix handling
+启用 **Export UE Assets → UE 子关卡（保留原点与实例）**，直接离线生成 `Territory_<ID>.umap`，无需安装或启动 UE。
 
-Important contributors:
-- [WorkingRobot](https://github.com/WorkingRobot) 
-  - GPU texture exports 
-  - Character-tree structure for exports
-  - Shape and attribute data
-  - Attach structs
-  - Skeleton Parsing
-- Members of the Penumbra discord
-  - Testing and feedback
+- 每个分组对应一个 Actor，组内按资源与外观建立 ISM 实例化静态网格组件。
+- 网格保留源模型的局部原点，仅转换坐标轴和单位；摆放位置、旋转与缩放存入实例相对变换。
+- 跨分组及兼容外观共享网格几何，不同染色通过组件材质覆盖保留，镜像实例单独分组件。
+- 生成的地图可独立打开、作为子关卡加载，或用作 Level Instance 的源关卡。
 
+SGB 会展开为子模型，不重建原始父子层级。关闭子关卡选项后，可使用按组烘焙世界位置的合并网格导出；Territory 同时支持按组导出 glTF/GLB。
+
+**玩家住房与家具**
+
+当前区域会从住房管理器补采已加载的家具、地块与外装。使用家具实际的运行时子物件，保留玩家摆放、动态替换和染色，并按运行时实例去重。
+
+玩家布置需要对应区域已加载；未采集到子项数据的组使用资源文件默认布局。导出报告包含住房/家具模型数量，便于核对导出范围。
+
+**UE 材质适配**
+
+将已支持的游戏着色器属性转换为可编辑的 UE Material 节点图，覆盖装备、皮肤、头发、虹膜，以及部分 legacy 和背景着色器。适配内容包括染色与颜色表、纹理采样、法线、透明裁剪及发光等属性。
+
+每个材质附带 `.formula.json`，记录适配内容、缺失依赖和未支持部分。UE 与游戏的光照及着色模型不同，材质导出不等同于最终画面完全一致。
+
+功能细节见 [UE 资产导出说明](docs/UE_EXPORT_SCHEMA.md) 与 [材质适配说明](docs/UE_MATERIAL_FORMULAS.md)。

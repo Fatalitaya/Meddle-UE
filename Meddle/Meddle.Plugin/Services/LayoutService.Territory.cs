@@ -16,15 +16,26 @@ public partial class LayoutService
         return world == null || world->ActiveLayout == null || world->ActiveLayout->InitState != 7
             ? null : world->ActiveLayout->TerritoryTypeId;
     }
+    // Transform is the world transform returned by GetTransformImpl. The game
+    // applies ChildNodeInstance.Transform through ChildNodeContainer.ApplyTransforms
+    // before storing it on the child; it must not be composed with its owner again.
     public record TerritoryRuntimeNode(uint Type, uint InstanceId, byte PrefabIndex, bool Active,
-        Transform Transform, string Path, ParsedStain? Stain, ParsedBgPartsInstance? Model, TerritoryRuntimeNode[] Children);
+        Transform Transform, string Path, ParsedStain? Stain, ParsedBgPartsInstance? Model, TerritoryRuntimeNode[] Children)
+    {
+        public bool IsHousing { get; init; }
+    }
     public record TerritoryRuntimeLayer(ushort GroupKey, ushort Key, TerritorySceneFile.Festival Festival, TerritoryRuntimeNode[] Nodes);
     public record TerritorySnapshot(uint TerritoryId, uint FilterKey, uint ContentId,
-        HashSet<TerritorySceneFile.Festival> Festivals, TerritoryRuntimeLayer[] Layers);
+        HashSet<TerritorySceneFile.Festival> Festivals, TerritoryRuntimeLayer[] Layers)
+    {
+        public TerritoryRuntimeNode[] AdditionalHousing { get; init; } = [];
+    }
 
     // Called on the framework thread. No pointers survive the snapshot and no overlay/range filters apply.
-    public unsafe TerritorySnapshot? CaptureTerritory(uint territoryId)
+    public unsafe TerritorySnapshot? CaptureTerritory(uint territoryId, bool includeInstances = true,
+        CancellationToken token = default)
     {
+        token.ThrowIfCancellationRequested();
         var world = sigUtil.GetLayoutWorld();
         if (world == null || world->ActiveLayout == null) return null;
         var layout = world->ActiveLayout;
@@ -39,9 +50,20 @@ public partial class LayoutService
             var words = (ushort*)&value;
             if (words[0] != 0) festivals.Add(new(words[0], words[1]));
         }
+        if (!includeInstances)
+            return new(territoryId, layout->LayerFilterKey, layout->CfcId, festivals, []);
+
+        var housing = ParseTerritoryFurniture(layout);
+        var housingRoots = housing.Plots.Select(p => (nint)p.LayoutInstance)
+            .Concat(housing.Plots.SelectMany(p => p.Fixtures).Select(f => (nint)f.LayoutInstance))
+            .Concat(housing.Furniture.Select(f => (nint)f.LayoutInstance))
+            .Where(p => p != 0).Distinct().ToArray();
+        var housingAddresses = housingRoots.ToHashSet();
+        var captured = new Dictionary<nint, TerritoryRuntimeNode>();
         var layers = new List<TerritoryRuntimeLayer>();
         foreach (var (key, pointer) in layout->Layers)
         {
+            token.ThrowIfCancellationRequested();
             var layer = pointer.Value;
             if (layer == null) continue;
             var nodes = new List<TerritoryRuntimeNode>();
@@ -52,11 +74,22 @@ public partial class LayoutService
             }
             layers.Add(new(layer->LayerGroupId, key, new(layer->FestivalId, layer->FestivalSubId), nodes.ToArray()));
         }
-        return new(territoryId, layout->LayerFilterKey, layout->CfcId, festivals, layers.ToArray());
+        var additionalHousing = new List<TerritoryRuntimeNode>();
+        // Plot roots precede fixtures so children retain their parent's coordinate space.
+        foreach (var address in housingRoots)
+        {
+            if (captured.ContainsKey(address)) continue;
+            var node = Capture((ILayoutInstance*)address, null);
+            if (node != null) additionalHousing.Add(node);
+        }
+        return new(territoryId, layout->LayerFilterKey, layout->CfcId, festivals, layers.ToArray())
+            { AdditionalHousing = additionalHousing.ToArray() };
 
         TerritoryRuntimeNode? Capture(ILayoutInstance* instance, ParsedStain? inheritedStain)
         {
+            token.ThrowIfCancellationRequested();
             if (instance == null || instance->Id.Type is not (InstanceType.BgPart or InstanceType.SharedGroup)) return null;
+            if (captured.TryGetValue((nint)instance, out var existing)) return existing;
             var transform = instance->GetTransformImpl();
             if (transform == null) return null;
             var path = instance->GetPrimaryPath();
@@ -84,10 +117,12 @@ public partial class LayoutService
                     if (node != null) children.Add(node);
                 }
             }
-            return new((uint)instance->Id.Type, instance->Id.InstanceKey, instance->IndexInPrefab,
+            var result = new TerritoryRuntimeNode((uint)instance->Id.Type, instance->Id.InstanceKey, instance->IndexInPrefab,
                 instance->IsActive || (!instance->IsPrimaryLoaded() && instance->WantToBeActive()),
                 new Transform(*transform), path.HasValue ? path.ToString() : "",
-                stain, model, children.ToArray());
+                stain, model, children.ToArray()) { IsHousing = housingAddresses.Contains((nint)instance) };
+            captured[(nint)instance] = result;
+            return result;
         }
     }
 }

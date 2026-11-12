@@ -52,6 +52,23 @@ public static class StaticMeshWriter
         });
         p.AddObject(p.Name, "StaticMesh", w =>
         {
+            // Current UE packages must supply this property: async PostLoad does
+            // not recompute it from render data for recent release versions.
+            var min = vertices.Select(v => v.Position).Aggregate(Vector3.Min);
+            var max = vertices.Select(v => v.Position).Aggregate(Vector3.Max);
+            var center = (min + max) * .5f;
+            var extent = (max - min) * .5f;
+            p.Property(w, "ExtendedBounds", p.Bytes(b =>
+            {
+                BoundsVector("Origin", center);
+                BoundsVector("BoxExtent", extent);
+                p.Property(b, "SphereRadius", p.Bytes(value => value.Write((double)extent.Length())), ("DoubleProperty", 0));
+                p.End(b);
+                void BoundsVector(string name, Vector3 vector) => p.NativeProperty(b, name, p.Bytes(value =>
+                {
+                    value.Write((double)vector.X); value.Write((double)vector.Y); value.Write((double)vector.Z);
+                }), ("StructProperty", 1), ("Vector", 1), ("/Script/CoreUObject", 0));
+            }), ("StructProperty", 1), ("BoxSphereBounds", 1), ("/Script/CoreUObject", 0));
             p.Property(w, "SourceModels", p.Bytes(b =>
             {
                 b.Write(1);

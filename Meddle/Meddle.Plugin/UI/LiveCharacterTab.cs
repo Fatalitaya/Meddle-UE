@@ -102,7 +102,7 @@ public unsafe class LiveCharacterTab : ITab
 
     private bool IsDisposed { get; set; }
 
-    public string Name => "Character";
+    public string Name => Loc.Text("Character");
     public int Order => (int)WindowOrder.Character;
 
     public void Draw()
@@ -112,11 +112,11 @@ public unsafe class LiveCharacterTab : ITab
         if (selectedCharacter != null)
         {
             var charPtr = (CSCharacter*)selectedCharacter.Address;
-            DrawCharacter(charPtr, "Character");
+            DrawCharacter(charPtr, Loc.Text("Character"));
         }
         else
         {
-            ImGui.Text("No character selected");
+            ImGui.Text(Loc.Text("NoCharacterSelected"));
         }
 
         fileDialog.Draw();
@@ -147,13 +147,13 @@ public unsafe class LiveCharacterTab : ITab
         var sw = Stopwatch.StartNew();
         if (depth > 3)
         {
-            ImGui.Text("Bad things happened, too deep");
+            ImGui.Text(Loc.Text("BadThingsHappenedTooDeep"));
             return;
         }
 
         if (character == null)
         {
-            ImGui.Text("Character is null");
+            ImGui.Text(Loc.Text("CharacterIsNull"));
             return;
         }
 
@@ -162,12 +162,12 @@ public unsafe class LiveCharacterTab : ITab
         ImGui.Text(name);
         if (drawObject == null)
         {
-            ImGui.Text("Draw object is null");
+            ImGui.Text(Loc.Text("DrawObjectIsNull"));
             return;
         }
         if (drawObject->GetObjectType() != ObjectType.CharacterBase)
         {
-            ImGui.Text("Draw object is not a character base");
+            ImGui.Text(Loc.Text("DrawObjectIsNotACharacterBase"));
             return;
         }
 
@@ -179,7 +179,7 @@ public unsafe class LiveCharacterTab : ITab
             var humanData = ParseMaterialUtil.ParseHuman(cBase);
             DrawHumanCharacter(humanData);
         }
-        ExportButton("Export All Models With Attaches", () =>
+        ExportButton(Loc.Label("ExportAllModelsWithAttaches"), () =>
         {
             var info = resolverService.ParseCharacter(character);
             if (info == null)
@@ -191,7 +191,7 @@ public unsafe class LiveCharacterTab : ITab
         }, character->NameString.GetCharacterName(config, character->ObjectKind));
 
         ImGui.SameLine();
-        ExportUeAssetsButton("Export UE Assets", () =>
+        ExportUeAssetsButton(Loc.Label("ExportUEAssets"), () =>
         {
             var info = resolverService.ParseCharacter(character);
             if (info == null)
@@ -203,7 +203,7 @@ public unsafe class LiveCharacterTab : ITab
         }, character->NameString.GetCharacterName(config, character->ObjectKind), character->ObjectKind.ToString());
 
         ImGui.SameLine();
-        UiUtil.HintCircle("Attaches are weapons, mounts, companions, parasols, etc. If you wish to export them separately, use the export buttons in their respective sections.");
+        UiUtil.HintCircle(Loc.Text("AttachesAreWeaponsMountsCompanionsParasolsEtcIfYouWish"));
 
         DrawDrawObject(drawObject, character->NameString.GetCharacterName(config, character->ObjectKind));
 
@@ -215,7 +215,7 @@ public unsafe class LiveCharacterTab : ITab
                 if (weaponData.DrawData.DrawObject != null)
                 {
                     ImGui.Separator();
-                    ImGui.Text($"Weapon {weaponIdx}");
+                    ImGui.Text(Loc.Format("Weapon", weaponIdx));
                     DrawDrawObject(weaponData.DrawData.DrawObject, $"{character->NameString.GetCharacterName(config, character->ObjectKind)}_Weapon");
                 }
             }
@@ -223,7 +223,7 @@ public unsafe class LiveCharacterTab : ITab
             if (character->Mount.MountObject != null)
             {
                 ImGui.Separator();
-                DrawCharacter(character->Mount.MountObject, "Mount", depth + 1);
+                DrawCharacter(character->Mount.MountObject, Loc.Text("Mount"), depth + 1);
             }
 
             // if (character->CompanionData.CompanionObject != null)
@@ -235,7 +235,7 @@ public unsafe class LiveCharacterTab : ITab
             if (character->OrnamentData.OrnamentObject != null)
             {
                 ImGui.Separator();
-                DrawCharacter(&character->OrnamentData.OrnamentObject->Character, "Ornament", depth + 1);
+                DrawCharacter(&character->OrnamentData.OrnamentObject->Character, Loc.Text("Ornament"), depth + 1);
             }
         }
         catch (Exception ex)
@@ -281,21 +281,21 @@ public unsafe class LiveCharacterTab : ITab
         if (!ImGui.BeginPopup("ExportSettingsPopup", ImGuiWindowFlags.AlwaysAutoResize)) return;
         try
         {
-            ImGui.Combo("模型组合", ref ueMeshMergeMode, "全部合并\0按部位合并\0不合并\0");
+            ImGui.Combo(Loc.Label("ModelMerge"), ref ueMeshMergeMode, Loc.Text("ModelMergeChoices"));
             ImGui.TextWrapped(ueMeshMergeMode switch
             {
-                0 => "实例和附件导出为一个模型，保留材质槽与骨骼。",
-                1 => "同一实例的各部位分别合并；附件单独分组。",
-                _ => "每个原始子网格单独导出。"
+                0 => Loc.Text("MergeAllHint"),
+                1 => Loc.Text("MergePartsHint"),
+                _ => Loc.Text("MergeNoneHint")
             });
-            if (ImGui.Button("Export"))
+            if (ImGui.Button(Loc.Label("Export")))
             {
                 StartUeExport(characterInfo, name, objectKind, (UeMeshMergeMode)ueMeshMergeMode);
                 drawExportSettingsCallback = null;
                 ImGui.CloseCurrentPopup();
             }
             ImGui.SameLine();
-            if (ImGui.Button("Cancel"))
+            if (ImGui.Button(Loc.Label("Cancel")))
             {
                 drawExportSettingsCallback = null;
                 ImGui.CloseCurrentPopup();
@@ -309,7 +309,7 @@ public unsafe class LiveCharacterTab : ITab
         var safeName = name.SanitizeFileName();
         var defaultName = $"Character-{safeName}-{DateTime.Now:yyyy-MM-dd-HH-mm-ss}";
         cancelToken = new CancellationTokenSource();
-        fileDialog.SaveFolderDialog("Save UE Assets", defaultName, (result, path) =>
+        fileDialog.SaveFolderDialog(Loc.Text("SaveUEAssets"), defaultName, (result, path) =>
         {
             if (!result)
             {
@@ -366,12 +366,12 @@ public unsafe class LiveCharacterTab : ITab
                 config.Save();
             }
 
-            if (ImGui.Button("Export"))
+            if (ImGui.Button(Loc.Label("Export")))
             {
                 name = name.SanitizeFileName();
                 var defaultName = $"Character-{name}-{DateTime.Now:yyyy-MM-dd-HH-mm-ss}";
                 cancelToken = new CancellationTokenSource();
-                fileDialog.SaveFolderDialog("Save Instances", defaultName,
+                fileDialog.SaveFolderDialog(Loc.Text("SaveInstances"), defaultName,
                                             (result, path) =>
                                             {
                                                 if (!result) return;
@@ -400,7 +400,7 @@ public unsafe class LiveCharacterTab : ITab
             }
 
             ImGui.SameLine();
-            if (ImGui.Button("Cancel"))
+            if (ImGui.Button(Loc.Label("Cancel")))
             {
                 drawExportSettingsCallback = null;
                 ImGui.CloseCurrentPopup();
@@ -415,7 +415,7 @@ public unsafe class LiveCharacterTab : ITab
     {
         if (drawObject == null)
         {
-            ImGui.Text("Draw object is null");
+            ImGui.Text(Loc.Text("DrawObjectIsNull"));
             return;
         }
 
@@ -429,7 +429,7 @@ public unsafe class LiveCharacterTab : ITab
         using var drawObjectId = ImRaii.PushId($"{(nint)drawObject}");
         var cBase = (CSCharacterBase*)drawObject;
 
-        ExportButton("Export All Models", () =>
+        ExportButton(Loc.Label("ExportAllModels"), () =>
         {
             var info = resolverService.ParseDrawObject((DrawObject*)cBase);
             if (info == null)
@@ -441,7 +441,7 @@ public unsafe class LiveCharacterTab : ITab
         }, name);
 
         ImGui.SameLine();
-        ExportUeAssetsButton("Export UE Assets", () =>
+        ExportUeAssetsButton(Loc.Label("ExportUEAssets"), () =>
             resolverService.ParseDrawObject(drawObject) ?? throw new InvalidDataException("Failed to resolve draw object."),
             name, cBase->GetModelType().ToString());
 
@@ -472,8 +472,8 @@ public unsafe class LiveCharacterTab : ITab
         }
 
         using var modelTable = ImRaii.Table("##Models", 2, ImGuiTableFlags.Borders | ImGuiTableFlags.Resizable);
-        ImGui.TableSetupColumn("Options", ImGuiTableColumnFlags.WidthFixed, 80);
-        ImGui.TableSetupColumn("Character Data", ImGuiTableColumnFlags.WidthStretch);
+        ImGui.TableSetupColumn(Loc.Label("Options"), ImGuiTableColumnFlags.WidthFixed, 80);
+        ImGui.TableSetupColumn(Loc.Label("CharacterData"), ImGuiTableColumnFlags.WidthStretch);
         ImGui.TableHeadersRow();
 
         foreach (var modelPtr in cBase->ModelsSpan)
@@ -554,7 +554,7 @@ public unsafe class LiveCharacterTab : ITab
                                           }, config.ExportDirectory);
             }
 
-            ExportMenuItem("Export as gLTF", () =>
+            ExportMenuItem(Loc.Label("ExportGltf"), () =>
                            {
                                var info = resolverService.ParseDrawObject((DrawObject*)cBase);
                                if (info == null)

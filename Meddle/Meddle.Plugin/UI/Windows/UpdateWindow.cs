@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Numerics;
 using System.Reflection;
 using Dalamud.Interface.Windowing;
@@ -12,7 +12,7 @@ public class UpdateWindow : Window
 {
     private readonly Configuration config;
     
-    public UpdateWindow(Configuration config) : base("Meddle Updates")
+    public UpdateWindow(Configuration config) : base(Loc.Label("MeddleUpdates"))
     {
         this.config = config;
         SizeConstraints = new WindowSizeConstraints
@@ -35,11 +35,11 @@ public class UpdateWindow : Window
 
     public override void Draw()
     {
-        ImGui.Text("Meddle Version: " + Assembly.GetExecutingAssembly().GetName().Version);
+        ImGui.Text(Loc.Format("MeddleVersion", Assembly.GetExecutingAssembly().GetName().Version));
 
         // option to disable this window from opening automatically
         var showUpdateWindow = config.UpdateConfig.ShowUpdateWindow;
-        if (ImGui.Checkbox("Automatically open this window when there are new release notes", ref showUpdateWindow))
+        if (ImGui.Checkbox(Loc.Label("AutomaticallyOpenThisWindowWhenThereAreNewReleaseNotes"), ref showUpdateWindow))
         {
             config.UpdateConfig.ShowUpdateWindow = showUpdateWindow;
             config.Save();
@@ -47,7 +47,7 @@ public class UpdateWindow : Window
         
         ImGui.Separator();
         
-        Vector2 mainButtonSize = new(150, 0);
+        Vector2 mainButtonSize = Vector2.Zero;
         using (ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.5f, 0.2f, 0.6f, 1)))
         {
             if (ImGui.Button("Carrd", mainButtonSize))
@@ -64,7 +64,7 @@ public class UpdateWindow : Window
         
         using (ImRaii.PushColor(ImGuiCol.Button, new Vector4(1f, 0.2f, 0.19f, 1)))
         {
-            if (ImGui.Button("Donate", mainButtonSize))
+            if (ImGui.Button(Loc.Label("Donate"), mainButtonSize))
             {
                 Process.Start(new ProcessStartInfo
                 {
@@ -92,7 +92,7 @@ public class UpdateWindow : Window
         
         using (ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.95f, 0.47f, 0.17f, 1)))
         {
-            if (ImGui.Button("MeddleTools Blender Addon", new (200, 0)))
+            if (ImGui.Button(Loc.Label("MeddleToolsBlenderAddon")))
             {
                 Process.Start(new ProcessStartInfo
                 {

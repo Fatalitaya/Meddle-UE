@@ -1,5 +1,7 @@
 ﻿using Dalamud.Game.Command;
 using Dalamud.Interface.Windowing;
+using Dalamud.Interface;
+using Dalamud.Interface.ManagedFontAtlas;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using Meddle.Plugin.UI.Layout;
@@ -22,6 +24,14 @@ public class WindowManager : IHostedService, IDisposable
     private readonly UpdateWindow updateWindow;
 
     private bool disposed;
+    private IFontHandle? uiFont;
+    private void Draw()
+    {
+        Loc.Refresh(config.Language, pluginInterface.UiLanguage);
+        using var font = uiFont?.Push();
+        updateWindow.WindowName = Loc.Label("MeddleUpdates");
+        windowSystem.Draw();
+    }
 
     public WindowManager(
         MainWindow mainWindow,
@@ -52,23 +62,41 @@ public class WindowManager : IHostedService, IDisposable
             log.LogDebug("Disposing window manager");
             commandManager.RemoveHandler(Command);
             config.OnConfigurationSaved -= OnSave;
-            pluginInterface.UiBuilder.Draw -= windowSystem.Draw;
+            pluginInterface.UiBuilder.Draw -= Draw;
             pluginInterface.UiBuilder.OpenConfigUi -= OpenMainUi;
             pluginInterface.UiBuilder.OpenMainUi -= OpenMainUi;
             mainWindow.Dispose();
             windowSystem.RemoveAllWindows();
+            uiFont?.Dispose();
             disposed = true;
         }
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
+        // Merge only the translated glyphs; also makes the language selector readable
+        // when Dalamud itself uses an English font. Icon scopes still use IconFont.
+        var fontPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Fonts), "msyh.ttc");
+        if (File.Exists(fontPath))
+        {
+            uiFont = pluginInterface.UiBuilder.FontAtlas.NewDelegateFontHandle(e => e.OnPreBuild(tk =>
+            {
+                var baseFont = tk.AddDalamudDefaultFont(UiBuilder.DefaultFontSizePx);
+                tk.AddFontFromFile(fontPath, new SafeFontConfig
+                {
+                    SizePx = UiBuilder.DefaultFontSizePx,
+                    MergeFont = baseFont,
+                    GlyphRanges = Loc.ChineseGlyphRanges
+                });
+                tk.Font = baseFont;
+            }));
+        }
         windowSystem.AddWindow(mainWindow);
         windowSystem.AddWindow(debugWindow);
         windowSystem.AddWindow(updateWindow);
 
         config.OnConfigurationSaved += OnSave;
-        pluginInterface.UiBuilder.Draw += windowSystem.Draw;
+        pluginInterface.UiBuilder.Draw += Draw;
         
         pluginInterface.UiBuilder.OpenMainUi += OpenMainUi;
         pluginInterface.UiBuilder.OpenConfigUi += OpenMainUi;

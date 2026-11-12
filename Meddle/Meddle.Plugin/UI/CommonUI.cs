@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Interface;
@@ -33,7 +33,7 @@ public class CommonUi : IDisposable, IService
     {
         ICharacter[] objects = objectTable.GetCharacters(flags);
 
-        ImGui.Text("Select Characters");
+        ImGui.Text(Loc.Text("SelectCharacters"));
         var selected = new List<ICharacter>();
         var notSelected = new List<ICharacter>();
         foreach (var character in objects)
@@ -64,7 +64,7 @@ public class CommonUi : IDisposable, IService
             ImGui.Text(displayText);
         }
 
-        using var combo = ImRaii.Combo("##MultiCharacter", $"{selectedCharacters.Count} Selected");
+        using var combo = ImRaii.Combo("##MultiCharacter", Loc.Format("SelectedCount", selectedCharacters.Count));
         if (combo)
         {
             foreach (var character in notSelected)
@@ -102,13 +102,13 @@ public class CommonUi : IDisposable, IService
 
         selectedCharacter ??= objects.FirstOrDefault() ?? objectTable.LocalPlayer;
 
-        ImGui.Text("Select Character");
+        ImGui.Text(Loc.Text("SelectCharacter"));
         if (selectedCharacter?.IsValid() == false && objectTable.LocalPlayer != null)
         {
             selectedCharacter = null;
         }
 
-        var preview = selectedCharacter != null ? GetCharacterDisplayText(selectedCharacter, true, true) : "None";
+        var preview = selectedCharacter != null ? GetCharacterDisplayText(selectedCharacter, true, true) : Loc.Text("None");
         using (var combo = ImRaii.Combo("##Character", preview))
         {
             if (combo)
@@ -124,7 +124,7 @@ public class CommonUi : IDisposable, IService
         }
         
         ImGui.SameLine();
-        ImGui.Checkbox("Select Target", ref selectTarget);
+        ImGui.Checkbox(Loc.Label("SelectTarget"), ref selectTarget);
         
         if (selectTarget)
         {
@@ -137,7 +137,7 @@ public class CommonUi : IDisposable, IService
                 }
                 else
                 {
-                    ImGui.Text("Target is not a valid character");
+                    ImGui.Text(Loc.Text("TargetIsNotAValidCharacter"));
                 }
             }
         }
@@ -150,7 +150,7 @@ public class CommonUi : IDisposable, IService
             {
                 using (ImRaii.PushColor(ImGuiCol.Text, new Vector4(1, 1, 0, 1)))
                 {
-                    ImGui.Text("Character is not visible");
+                    ImGui.Text(Loc.Text("CharacterIsNotVisible"));
                 }
 
                 if (clientState.IsGPosing)
@@ -164,8 +164,7 @@ public class CommonUi : IDisposable, IService
                     {
                         ImGui.BeginTooltip();
                         ImGui.Text(
-                            "When in gpose, copies of targetable actors are created, " +
-                            "if you're not expecting this, try selecting the character from the list again");
+                            Loc.Text("GposeCopies"));
                         ImGui.EndTooltip();
                     }
                 }

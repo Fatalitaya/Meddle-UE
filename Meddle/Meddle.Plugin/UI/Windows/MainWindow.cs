@@ -42,12 +42,12 @@ public sealed class MainWindow : MeddleWindowBase
     {
         if (ImGui.BeginMenuBar())
         {
-            if (config.DisplayDebugInfo && ImGui.MenuItem("Debug"))
+            if (config.DisplayDebugInfo && ImGui.MenuItem(Loc.Label("Debug")))
             {
                 debugWindow.IsOpen = true;
             }
             
-            if (ImGui.MenuItem("Blender Addon"))
+            if (ImGui.MenuItem(Loc.Label("BlenderAddon")))
             {
                 Process.Start(new ProcessStartInfo
                 {
@@ -71,7 +71,7 @@ public sealed class MainWindow : MeddleWindowBase
                 });
             }
             
-            if (ImGui.MenuItem("Bug Report"))
+            if (ImGui.MenuItem(Loc.Label("BugReport")))
             {
                 Process.Start(new ProcessStartInfo
                 {
@@ -79,7 +79,7 @@ public sealed class MainWindow : MeddleWindowBase
                 });
             }
             
-            if (ImGui.MenuItem("Updates"))
+            if (ImGui.MenuItem(Loc.Label("Updates")))
             {
                 updateWindow.IsOpen = true;
             }

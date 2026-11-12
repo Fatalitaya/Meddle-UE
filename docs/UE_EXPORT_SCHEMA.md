@@ -4,6 +4,8 @@
 
 ## 使用
 
+- **Territory → Export UE Assets → UE 子关卡（保留原点与实例）**：直接离线生成 `Content/Meddle/Territory_<ID>/Territory_<ID>.umap`，无需 UE 安装或编辑器进程。每个分组一个 Actor，按资源/外观分成 ISM 组件，网格保留局部原点，实例保存相对变换。组件材质覆盖支持同一几何的不同染色；镜像实例单独分组件。关闭该选项恢复烘焙合并网格。完整复制 Content/Meddle 后可打开地图，或作为子关卡/Level Instance 源使用。此入口只包含已采集静态模型，SGB 已展开，不重建原始父子层级或 NPC。
+
 - **Live Character → Export UE Assets**：弹出与 Export All 同样风格的设置菜单，选择“模型组合”，再点击 Export。导出 Skeleton、SkeletalMesh（包含形态目标）、Texture2D 和带属性计算图的标准 Material。
 - 角色页的 UE 入口适用于可解析的 CharacterBase，包括人形 NPC、怪物、坐骑、宠物及单独的武器/附件，不再仅显示在人形模型分支。
 - **Layout → 单个/选中/筛选实例的 Export → Export UE Assets**：支持角色、背景物件、家具/共享组和地形板块。每个所选顶层实例独立输出，父组与子实例同时选中时去重；保留场景位置，使用同样的“全部合并 / 按部位合并 / 不合并”选项。只有全部合并使用实例名，其他模式使用部位或源模型名；重名添加数字后缀。

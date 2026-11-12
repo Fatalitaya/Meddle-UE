@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using Dalamud.Interface;
 using Dalamud.Interface.Utility.Raii;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
@@ -25,7 +25,7 @@ public static class UiUtil
         ImGui.Text(text);
         if (ImGui.IsItemHovered() && copyValue != null)
         {
-            ImGui.SetTooltip($"Click to copy {copyValue}");
+            ImGui.SetTooltip(Loc.Format("Copy", copyValue));
             if (ImGui.IsItemClicked(ImGuiMouseButton.Left))
             {
                 ImGui.SetClipboardText(copyValue);
@@ -37,17 +37,17 @@ public static class UiUtil
     {
         if (exportTask.IsFaulted)
         {
-            ImGui.TextColored(new Vector4(1, 0, 0, 1), "Export failed");
+            ImGui.TextColored(new Vector4(1, 0, 0, 1), Loc.Text("ExportFailed"));
             ImGui.TextWrapped(exportTask.Exception?.ToString());
         }
         
         if (exportTask.IsCompleted) return;
         
-        ImGui.Text("Export in progress..."); 
+        ImGui.Text(Loc.Text("ExportInProgress"));
         ImGui.SameLine();
         using (var disabled = ImRaii.Disabled(cancelToken.IsCancellationRequested))
         {
-            if (ImGui.Button(cancelToken.IsCancellationRequested ? "Cancelling..." : "Cancel"))
+            if (ImGui.Button((cancelToken.IsCancellationRequested ? Loc.Text("Cancelling") : Loc.Text("Cancel")) + "###CancelExport"))
             {
                 cancelToken.Cancel();
             }
@@ -63,7 +63,7 @@ public static class UiUtil
         void DrawProgressRecursive(ExportProgress rProgress)
         {
             if (rProgress.IsComplete) return;
-            ImGui.Text($"{(rProgress.Name != null ? $"{rProgress.Name} " : null)}Exporting {rProgress.Progress} of {rProgress.Total}");
+            ImGui.Text(Loc.Format("ExportProgress", rProgress.Name, rProgress.Progress, rProgress.Total));
             ImGui.ProgressBar(rProgress.Progress / (float)rProgress.Total, new Vector2(-1, 0), rProgress.Name ?? "");
             if (rProgress.Children.Count > 0)
             {
@@ -72,7 +72,7 @@ public static class UiUtil
                 {
                     if (child == rProgress)
                     {
-                        ImGui.Text("Recursive progress detected, skipping");
+                        ImGui.Text(Loc.Text("RecursiveProgressDetectedSkipping"));
                         continue;
                     }
                     DrawProgressRecursive(child);
@@ -100,17 +100,17 @@ public static class UiUtil
         if (!flags.HasFlag(ExportConfigDrawFlags.NativeAssets))
         {
             var cacheFileTypes = exportConfiguration.CacheFileTypes;
-            if (EnumExtensions.DrawEnumCombo("Extra Cache Files", ref cacheFileTypes))
+            if (EnumExtensions.DrawEnumCombo(Loc.Label("ExtraCacheFiles"), ref cacheFileTypes))
             {
                 exportConfiguration.CacheFileTypes = cacheFileTypes;
                 changed = true;
             }
 
             ImGui.SameLine();
-            HintCircle("Select which files to cache when exporting, this is not needed in most cases");
+            HintCircle(Loc.Text("SelectWhichFilesToCacheWhenExportingThisIsNot"));
 
             var exportType = exportConfiguration.ExportType;
-            if (EnumExtensions.DrawEnumCombo("Export type", ref exportType))
+            if (EnumExtensions.DrawEnumCombo(Loc.Label("ExportType"), ref exportType))
             {
                 exportConfiguration.ExportType = exportType;
                 if (exportType == 0)
@@ -122,13 +122,12 @@ public static class UiUtil
             }
 
             ImGui.SameLine();
-            HintCircle("Select the type of export to use, GLTF is recommended for most cases.\n" +
-                       "GLB is a binary version of GLTF, and OBJ is a legacy format that is not recommended for most cases.");
+            HintCircle(Loc.Text("ExportTypeHint"));
 
             if (exportType.HasFlag(ExportType.OBJ))
             {
                 // draw warning that OBJ is not recommended
-                ImGui.TextColored(new Vector4(1, 0, 0, 1), "OBJ export is not recommended and may not work as expected.");
+                ImGui.TextColored(new Vector4(1, 0, 0, 1), Loc.Text("OBJExportIsNotRecommendedAndMayNotWorkAs"));
             }
 
         }
@@ -136,44 +135,40 @@ public static class UiUtil
         if (flags.HasFlag(ExportConfigDrawFlags.ShowExportPose))
         {
             var poseMode = exportConfiguration.PoseMode;
-            if (EnumExtensions.DrawEnumDropDown("Pose Mode", ref poseMode))
+            if (EnumExtensions.DrawEnumDropDown(Loc.Label("PoseMode"), ref poseMode))
             {
                 exportConfiguration.PoseMode = poseMode;
                 changed = true;
             }
             
             ImGui.SameLine();
-            HintCircle($"Reference Pose ({nameof(SkeletonUtils.PoseMode.None)}): Export will not include a pose track.\n" +
-                       $"Reference Pose with Scale ({nameof(SkeletonUtils.PoseMode.LocalScaleOnly)}): Export will include only scaling on the pose track.\n" +
-                       $"[default]Pose ({nameof(SkeletonUtils.PoseMode.Local)}): Export will include scaling, rotation and translation on the pose track.");
+            HintCircle(Loc.Text("PoseHint"));
         }
         
         if (flags.HasFlag(ExportConfigDrawFlags.ShowUseDeformer))
         {
             var useDeformer = exportConfiguration.UseDeformer;
-            if (ImGui.Checkbox("Use Deformer", ref useDeformer))
+            if (ImGui.Checkbox(Loc.Label("UseDeformer"), ref useDeformer))
             {
                 exportConfiguration.UseDeformer = useDeformer;
                 changed = true;
             }
         
             ImGui.SameLine();
-            HintCircle("If enabled, the export will use the deformer to export the model.\n" +
-                       "This is recommended for most models, but will result in different deformations based on the race associated with the model.");
+            HintCircle(Loc.Text("DeformerHint"));
         }
 
         if (flags.HasFlag(ExportConfigDrawFlags.ShowBgPartOptions))
         {
             var skipHiddenBgParts = exportConfiguration.SkipHiddenBgParts;
-            if (ImGui.Checkbox("Remove hidden background parts", ref skipHiddenBgParts))
+            if (ImGui.Checkbox(Loc.Label("RemoveHiddenBackgroundParts"), ref skipHiddenBgParts))
             {
                 exportConfiguration.SkipHiddenBgParts = skipHiddenBgParts;
                 changed = true;
             }
         
             ImGui.SameLine();
-            HintCircle("If enabled, the export will skip any models that are not visible in the game.\n" +
-                       "Example: if an arena changes shape throughout an encounter, the export will only include the arena that is currently visible.");
+            HintCircle(Loc.Text("HiddenPartsHint"));
         }
 
         if (flags.HasFlag(ExportConfigDrawFlags.ShowSubmeshOptions))
@@ -190,15 +185,14 @@ public static class UiUtil
             //            "this will make sure the export only includes the features that are currently enabled.");
             
             var applyEqpFlags = exportConfiguration.ApplyVisibilityFlags;
-            if (ImGui.Checkbox("Apply Visibility Flags", ref applyEqpFlags))
+            if (ImGui.Checkbox(Loc.Label("ApplyVisibilityFlags"), ref applyEqpFlags))
             {
                 exportConfiguration.ApplyVisibilityFlags = applyEqpFlags;
                 changed = true;
             }
             
             ImGui.SameLine();
-            HintCircle("If enabled, the export will apply visibility flags based on EQP manipulations and certain in-game toggles (such as additional character features)\n" +
-                       "This will make sure the export only includes the models/submeshes that are currently visible on the character.");
+            HintCircle(Loc.Text("VisibilityHint"));
         }
         
         if (flags.HasFlag(ExportConfigDrawFlags.ShowTerrainOptions))
@@ -213,7 +207,7 @@ public static class UiUtil
             ImGui.SameLine();
             
             var limitTerrainExportRange = exportConfiguration.LimitTerrainExportRange;
-            if (ImGui.Checkbox("Limit terrain range", ref limitTerrainExportRange))
+            if (ImGui.Checkbox(Loc.Label("LimitTerrainRange"), ref limitTerrainExportRange))
             {
                 exportConfiguration.LimitTerrainExportRange = limitTerrainExportRange;
                 changed = true;
@@ -221,8 +215,7 @@ public static class UiUtil
             
             ImGui.SameLine();
             
-            HintCircle("If enabled, the export will only include terrain within the specified distance from the player.\n" +
-                       "This is useful for reducing the size of the export, but may result in missing terrain in some areas.");
+            HintCircle(Loc.Text("TerrainRangeHint"));
         }
 
         // var rootAttachHandling = exportConfiguration.RootAttachHandling;
@@ -237,15 +230,14 @@ public static class UiUtil
         //             "Exclude: Export the root attach separately from the player");
 
         var enableWindingFlip = exportConfiguration.EnableWindingFlip;
-        if (ImGui.Checkbox("Enable Winding Order Flip", ref enableWindingFlip))
+        if (ImGui.Checkbox(Loc.Label("EnableWindingOrderFlip"), ref enableWindingFlip))
         {
             exportConfiguration.EnableWindingFlip = enableWindingFlip;
             changed = true;
         }
 
         ImGui.SameLine();
-        HintCircle("Automatically flips triangle winding order when face normals don't match vertex normals.\n" +
-                   "Enable this if exported models have inverted or incorrect face normals.");
+        HintCircle(Loc.Text("WindingHint"));
 
         return changed;
     }
@@ -259,7 +251,9 @@ public static class UiUtil
         if (ImGui.IsItemHovered())
         {
             ImGui.BeginTooltip();
+            ImGui.PushTextWrapPos(ImGui.GetFontSize() * 35f);
             ImGui.Text(text);
+            ImGui.PopTextWrapPos();
             ImGui.EndTooltip();
         }
     }

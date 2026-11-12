@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Numerics;
 using System.Reflection;
 using Dalamud.Interface.Utility.Raii;
@@ -11,20 +11,20 @@ public class AboutTab : ITab
 {
     public void Dispose() { }
 
-    public string Name => "About";
+    public string Name => Loc.Text("About");
     public MenuType MenuType => MenuType.Default;
     public int Order => (int) WindowOrder.About;
 
     public void Draw()
     {
         var assemblyVersion = Assembly.GetExecutingAssembly().GetName().Version?.ToString(); 
-        ImGui.Text($"Version: {assemblyVersion}");
+        ImGui.Text(Loc.Format("Version", assemblyVersion));
         
-        ImGui.TextWrapped("Meddle is a tool that allows you to export models and animations directly from the game.");
-        ImGui.TextWrapped("It is still in development and may not work as expected.");
-        ImGui.TextWrapped("Please report any issues on the GitHub repository.");
+        ImGui.TextWrapped(Loc.Text("MeddleIsAToolThatAllowsYouToExportModels"));
+        ImGui.TextWrapped(Loc.Text("ItIsStillInDevelopmentAndMayNotWorkAs"));
+        ImGui.TextWrapped(Loc.Text("PleaseReportAnyIssuesOnTheGitHubRepository"));
 
-        Vector2 mainButtonSize = new(150, 0);
+        Vector2 mainButtonSize = Vector2.Zero;
         using (ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.3f, 0.3f, 1f, 1)))
         {
             if (ImGui.Button("GitHub", mainButtonSize))
@@ -39,7 +39,7 @@ public class AboutTab : ITab
         ImGui.SameLine();
         using (ImRaii.PushColor(ImGuiCol.Button, new Vector4(1f, 0.25f, 0.25f, 1)))
         {
-            if (ImGui.Button("Report an Issue", mainButtonSize))
+            if (ImGui.Button(Loc.Label("ReportAnIssue"), mainButtonSize))
             {
                 Process.Start(new ProcessStartInfo
                 {
@@ -49,14 +49,14 @@ public class AboutTab : ITab
 
             if (ImGui.IsItemHovered())
             {
-                ImGui.SetTooltip("Please be sure to include any relevant logs from /xllog in your report.");
+                ImGui.SetTooltip(Loc.Text("PleaseBeSureToIncludeAnyRelevantLogsFromXllog"));
             }
         }
         
         ImGui.SameLine();
         using (ImRaii.PushColor(ImGuiCol.Button, new Vector4(0.95f, 0.54f, 0.15f, 1)))
         {
-            if (ImGui.Button("Blender Addon", mainButtonSize))
+            if (ImGui.Button(Loc.Label("BlenderAddon"), mainButtonSize))
             {
                 Process.Start(new ProcessStartInfo
                 {
@@ -65,22 +65,22 @@ public class AboutTab : ITab
             }
         }
 
-        if (ImGui.CollapsingHeader("How does meddle read this data?"))
+        if (ImGui.CollapsingHeader(Loc.Label("HowDoesMeddleReadThisData")))
         {
-            ImGui.TextWrapped("Meddle uses a combination of the following:");
-            ImGui.BulletText("Reading the sqpack files packaged with the game.");
-            ImGui.BulletText("Reading on-disk files from paths that are overwritten by plugins like Penumbra.");
-            ImGui.BulletText("Reading the game's memory to retrieve paths and other information about the game-state.");
-            ImGui.BulletText("Reading data directly from the GPU to retrieve texture information.");
+            ImGui.TextWrapped(Loc.Text("MeddleUsesACombinationOfTheFollowing"));
+            ImGui.BulletText(Loc.Text("ReadingTheSqpackFilesPackagedWithTheGame"));
+            ImGui.BulletText(Loc.Text("ReadingOnDiskFilesFromPathsThatAreOverwrittenBy"));
+            ImGui.BulletText(Loc.Text("ReadingTheGameSMemoryToRetrievePathsAndOther"));
+            ImGui.BulletText(Loc.Text("ReadingDataDirectlyFromTheGPUToRetrieveTextureInformation"));
         }
 
-        ImGui.Text("Credits");
+        ImGui.Text(Loc.Text("Credits"));
         const int nameWidth = 130;
         Vector2 buttonSize = new(130, 0);
         using (ImRaii.Table("Credits", 2, ImGuiTableFlags.Borders))
         {
-            ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthFixed, nameWidth);
-            ImGui.TableSetupColumn("Contribution", ImGuiTableColumnFlags.None);
+            ImGui.TableSetupColumn(Loc.Label("Name"), ImGuiTableColumnFlags.WidthFixed, nameWidth);
+            ImGui.TableSetupColumn(Loc.Label("Contribution"), ImGuiTableColumnFlags.None);
             ImGui.TableHeadersRow();
 
             foreach (var (name, role, link) in UserCredits)
@@ -97,11 +97,11 @@ public class AboutTab : ITab
             }
         }
 
-        ImGui.TextWrapped("Special Thanks to the following projects and their respective developers:");
+        ImGui.TextWrapped(Loc.Text("SpecialThanksToTheFollowingProjectsAndTheirRespectiveDevelopers"));
         using (ImRaii.Table("Project Credits", 2, ImGuiTableFlags.Borders))
         {
-            ImGui.TableSetupColumn("Project", ImGuiTableColumnFlags.WidthFixed, nameWidth);
-            ImGui.TableSetupColumn("Usage", ImGuiTableColumnFlags.None);
+            ImGui.TableSetupColumn(Loc.Label("Project"), ImGuiTableColumnFlags.WidthFixed, nameWidth);
+            ImGui.TableSetupColumn(Loc.Label("Usage"), ImGuiTableColumnFlags.None);
             ImGui.TableHeadersRow();
 
             foreach (var (name, role, link) in ProjectCredits)
@@ -121,15 +121,15 @@ public class AboutTab : ITab
 
     private static List<(string, string, string)> UserCredits =>
     [
-        ("PassiveModding", "Developer", Constants.MeddleUrl),
-        ("Asriel", "GPU/DX11 data handling, shape and attribute logic, attach work, skeleton traversal", "https://github.com/WorkingRobot")
+        ("PassiveModding", Loc.Text("Developer"), Constants.MeddleUrl),
+        ("Asriel", Loc.Text("CreditAsriel"), "https://github.com/WorkingRobot")
     ];
 
     private static List<(string, string, string)> ProjectCredits =>
     [
-        ("Xande", "Base for the plugin, PBD file structure, meshbuilder, racedeformer, havok research", "https://github.com/xivdev/Xande"),
-        ("Penumbra", "Shader logic, vertex info, spanbinaryreader impl.", "https://github.com/xivdev/Penumbra"),
-        ("Lumina", "File structures", "https://github.com/NotAdam/Lumina/"),
-        ("Pathfinder", "World overlay reference design.", "https://github.com/chirpxiv/ffxiv-pathfinder")
+        ("Xande", Loc.Text("CreditXande"), "https://github.com/xivdev/Xande"),
+        ("Penumbra", Loc.Text("CreditPenumbra"), "https://github.com/xivdev/Penumbra"),
+        ("Lumina", Loc.Text("CreditLumina"), "https://github.com/NotAdam/Lumina/"),
+        ("Pathfinder", Loc.Text("CreditPathfinder"), "https://github.com/chirpxiv/ffxiv-pathfinder")
     ];
 }

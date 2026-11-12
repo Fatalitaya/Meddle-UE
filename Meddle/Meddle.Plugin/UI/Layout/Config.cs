@@ -46,74 +46,71 @@ public partial class LayoutWindow
 
     private void DrawOptions()
     {
-        if (ImGui.CollapsingHeader("Overlay Options"))
+        if (ImGui.CollapsingHeader(Loc.Label("LayoutOverlayOptions")))
         {
             var dotColor = config.LayoutConfig.WorldDotColor;
-            if (ImGui.ColorEdit4("Dot Color", ref dotColor, ImGuiColorEditFlags.NoInputs))
+            if (ImGui.ColorEdit4(Loc.Label("LayoutDotColor"), ref dotColor, ImGuiColorEditFlags.NoInputs))
             {
                 config.LayoutConfig.WorldDotColor = dotColor;
                 config.Save();
             }
 
             var drawOverlay = config.LayoutConfig.DrawOverlay;
-            if (ImGui.Checkbox("Draw Overlay", ref drawOverlay))
+            if (ImGui.Checkbox(Loc.Label("LayoutDrawOverlay"), ref drawOverlay))
             {
                 config.LayoutConfig.DrawOverlay = drawOverlay;
                 config.Save();
             }
 
             var drawChildren = config.LayoutConfig.DrawChildren;
-            if (ImGui.Checkbox("Draw Children", ref drawChildren))
+            if (ImGui.Checkbox(Loc.Label("LayoutDrawChildren"), ref drawChildren))
             {
                 config.LayoutConfig.DrawChildren = drawChildren;
                 config.Save();
             }
             
             var traceToParent = config.LayoutConfig.TraceToParent;
-            if (drawChildren && ImGui.Checkbox("Trace to Parent", ref traceToParent))
+            if (drawChildren && ImGui.Checkbox(Loc.Label("LayoutTracetoParent"), ref traceToParent))
             {
                 config.LayoutConfig.TraceToParent = traceToParent;
                 config.Save();
             }
 
             var traceToHovered = config.LayoutConfig.TraceToHovered;
-            if (ImGui.Checkbox("Trace to Hovered", ref traceToHovered))
+            if (ImGui.Checkbox(Loc.Label("LayoutTracetoHovered"), ref traceToHovered))
             {
                 config.LayoutConfig.TraceToHovered = traceToHovered;
                 config.Save();
             }
         }
         
-        if (ImGui.CollapsingHeader("Parse Options"))
+        if (ImGui.CollapsingHeader(Loc.Label("LayoutParseOptions")))
         {
             var cutoff = config.LayoutConfig.WorldCutoffDistance;
-            if (ImGui.DragFloat("Cutoff Distance", ref cutoff, 1, 0, 10000))
+            if (ImGui.DragFloat(Loc.Label("LayoutCutoffDistance"), ref cutoff, 1, 0, 10000))
             {
                 config.LayoutConfig.WorldCutoffDistance = cutoff;
                 config.Save();
             }
 
-            ImGui.Text($"Current Origin: (X:{searchOrigin.X:F2}, Y:{searchOrigin.Y:F2}, Z{searchOrigin.Z:F2})");
+            ImGui.Text(Loc.Format("CurrentOrigin", searchOrigin.X, searchOrigin.Y, searchOrigin.Z));
             var originAdjustment = config.LayoutConfig.OriginAdjustment;
-            if (EnumExtensions.DrawEnumDropDown("Origin", ref originAdjustment))
+            if (EnumExtensions.DrawEnumDropDown(Loc.Label("LayoutOrigin"), ref originAdjustment))
             {
                 config.LayoutConfig.OriginAdjustment = originAdjustment;
                 config.Save();
             }
 
             ImGui.SameLine();
-            UiUtil.HintCircle("The origin point for layout display (does not affect exports)\n" +
-                              "Player: The player's position\n" +
-                              "Camera: The camera's position\n" +
-                              "Origin: 0,0,0");
+            UiUtil.HintCircle(Loc.Text("LayoutOriginHint"));
 
             if (config.LayoutConfig.OriginAdjustment != OriginAdjustment.Camera)
             {
-                ImGui.TextColored(new Vector4(1, 0, 0, 1), "WARNING: Using Player or Origin as the origin point may cause issues with cutscenes");
+                ImGui.TextColored(new Vector4(1, 0, 0, 1), Loc.Text("OriginWarning"));
             }
 
             var drawTypes = config.LayoutConfig.DrawTypes;
-            if (ImGui.BeginCombo("Draw Types", drawTypes.GetDescription()))
+            if (ImGui.BeginCombo(Loc.Label("LayoutDrawTypes"), drawTypes.GetDescription()))
             {
                 foreach (var type in Enum.GetValues<ParsedInstanceType>())
                 {
@@ -147,35 +144,33 @@ public partial class LayoutWindow
             }
         }
 
-        if (ImGui.CollapsingHeader("List Options"))
+        if (ImGui.CollapsingHeader(Loc.Label("LayoutListOptions")))
         {
             var includeSharedGroupsWhereSubItemsAreVisible = config.LayoutConfig.IncludeSharedGroupsWhereSubItemsAreWithinRange;
-            if (ImGui.Checkbox("Include Shared Groups Where Sub Items Are Visible", ref includeSharedGroupsWhereSubItemsAreVisible))
+            if (ImGui.Checkbox(Loc.Label("LayoutIncludeSharedGroupsWhereSubItemsAreVisible"), ref includeSharedGroupsWhereSubItemsAreVisible))
             {
                 config.LayoutConfig.IncludeSharedGroupsWhereSubItemsAreWithinRange = includeSharedGroupsWhereSubItemsAreVisible;
                 config.Save();
             }
             ImGui.SameLine();
-            UiUtil.HintCircle("If enabled, shared groups will be included in the layout if any of their sub items are visible.\n" +
-                              "This may mean that complex shared groups will be included in the layout, even if only a small subset of the items are within the cutoff distance.\n" +
-                              "If disabled, shared groups will only be included if the shared group origin is within the cutoff distance.");
+            UiUtil.HintCircle(Loc.Text("LayoutSharedHint"));
             
             var hideOffscreenCharacters = config.LayoutConfig.HideOffscreenCharacters;
-            if (ImGui.Checkbox("Hide Offscreen Characters", ref hideOffscreenCharacters))
+            if (ImGui.Checkbox(Loc.Label("LayoutHideOffscreenCharacters"), ref hideOffscreenCharacters))
             {
                 config.LayoutConfig.HideOffscreenCharacters = hideOffscreenCharacters;
                 config.Save();
             }
         
             var orderByDistance = config.LayoutConfig.OrderByDistance;
-            if (ImGui.Checkbox("Order by Distance", ref orderByDistance))
+            if (ImGui.Checkbox(Loc.Label("LayoutOrderbyDistance"), ref orderByDistance))
             {
                 config.LayoutConfig.OrderByDistance = orderByDistance;
                 config.Save();
             }
 
             var maxItemCount = config.LayoutConfig.MaxItemCount;
-            if (ImGui.DragInt("Max Item Count", ref maxItemCount, 1, 1, 50000))
+            if (ImGui.DragInt(Loc.Label("LayoutMaxItemCount"), ref maxItemCount, 1, 1, 50000))
             {
                 config.LayoutConfig.MaxItemCount = maxItemCount;
                 config.Save();

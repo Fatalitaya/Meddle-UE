@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Numerics;
 using Dalamud.Interface;
 using Dalamud.Interface.Utility.Raii;
@@ -20,13 +20,21 @@ public class OptionsTab : ITab
 
     public void Dispose() { }
 
-    public string Name => "Options";
+    public string Name => Loc.Text("Options");
     public int Order => (int) WindowOrder.Options;
 
     public void Draw()
     {
+        var language = (int)config.Language;
+        if (ImGui.Combo("语言 / Language###UiLanguage", ref language,
+                "跟随 Dalamud / Auto\0English\0简体中文\0"))
+        {
+            config.Language = (UiLanguage)language;
+            config.Save();
+        }
+
         var exportDirectory = config.ExportDirectory;
-        if (ImGui.InputText("Default Export Directory", ref exportDirectory, 256))
+        if (ImGui.InputText(Loc.Label("DefaultExportDirectory"), ref exportDirectory, 256))
         {
             config.ExportDirectory = exportDirectory;
             config.Save();
@@ -44,37 +52,37 @@ public class OptionsTab : ITab
         
         if (exportDirectory.Contains(Path.GetTempPath(), StringComparison.OrdinalIgnoreCase))
         {
-            ImGui.TextColored(new Vector4(1, 0, 0, 1), "Warning: Exporting to the temp directory may cause files to be deleted on reboot.");
+            ImGui.TextColored(new Vector4(1, 0, 0, 1), Loc.Text("WarningExportingToTheTempDirectoryMayCauseFilesTo"));
         }
         
         if (ImGui.IsItemHovered())
         {
             ImGui.BeginTooltip();
-            ImGui.Text("Reset to default export directory");
+            ImGui.Text(Loc.Text("ResetToDefaultExportDirectory"));
             ImGui.EndTooltip();
         }
         
-        if (ImGui.Button("Open output folder"))
+        if (ImGui.Button(Loc.Label("OpenOutputFolder")))
         {
             Process.Start("explorer.exe", config.ExportDirectory);
         }
         
         var openOnLoad = config.OpenOnLoad;
-        if (ImGui.Checkbox("Open Main Window on load", ref openOnLoad))
+        if (ImGui.Checkbox(Loc.Label("OpenMainWindowOnLoad"), ref openOnLoad))
         {
             config.OpenOnLoad = openOnLoad;
             config.Save();
         }
 
         var debug = config.OpenDebugMenuOnLoad;
-        if (ImGui.Checkbox("Open Debug Window on Load", ref debug))
+        if (ImGui.Checkbox(Loc.Label("OpenDebugWindowOnLoad"), ref debug))
         {
             config.OpenDebugMenuOnLoad = debug;
             config.Save();
         }
         
         var update = config.UpdateConfig.ShowUpdateWindow;
-        if (ImGui.Checkbox("Show Update Window when a new version is loaded", ref update))
+        if (ImGui.Checkbox(Loc.Label("ShowUpdateWindowWhenANewVersionIsLoaded"), ref update))
         {
             config.UpdateConfig.ShowUpdateWindow = update;
             config.Save();
@@ -110,7 +118,7 @@ public class OptionsTab : ITab
         // ImGui.Separator();
         
         var playerNameOverride = config.PlayerNameOverride;
-        if (ImGui.InputText("Player Name Override", ref playerNameOverride, 64))
+        if (ImGui.InputText(Loc.Label("PlayerNameOverride"), ref playerNameOverride, 64))
         {
             config.PlayerNameOverride = playerNameOverride;
             config.Save();
@@ -119,7 +127,7 @@ public class OptionsTab : ITab
         ImGui.Separator();
         
         var minimumNotificationLogLevel = config.MinimumNotificationLogLevel;
-        if (ImGui.BeginCombo("Minimum Notification Log Level", minimumNotificationLogLevel.ToString()))
+        if (ImGui.BeginCombo(Loc.Label("MinimumNotificationLogLevel"), minimumNotificationLogLevel.ToString()))
         {
             foreach (var level in (LogLevel[])Enum.GetValues(typeof(LogLevel)))
             {
@@ -134,42 +142,42 @@ public class OptionsTab : ITab
         }
 
         var disableUserUiHide = config.DisableUserUiHide;
-        if (ImGui.Checkbox("Disable User UI Hide", ref disableUserUiHide))
+        if (ImGui.Checkbox(Loc.Label("DisableUserUIHide"), ref disableUserUiHide))
         {
             config.DisableUserUiHide = disableUserUiHide;
             config.Save();
         }
 
         var disableAutomaticUiHide = config.DisableAutomaticUiHide;
-        if (ImGui.Checkbox("Disable Automatic UI Hide", ref disableAutomaticUiHide))
+        if (ImGui.Checkbox(Loc.Label("DisableAutomaticUIHide"), ref disableAutomaticUiHide))
         {
             config.DisableAutomaticUiHide = disableAutomaticUiHide;
             config.Save();
         }
 
         var disableCutsceneUiHide = config.DisableCutsceneUiHide;
-        if (ImGui.Checkbox("Disable Cutscene UI Hide", ref disableCutsceneUiHide))
+        if (ImGui.Checkbox(Loc.Label("DisableCutsceneUIHide"), ref disableCutsceneUiHide))
         {
             config.DisableCutsceneUiHide = disableCutsceneUiHide;
             config.Save();
         }
 
         var disableGposeUiHide = config.DisableGposeUiHide;
-        if (ImGui.Checkbox("Disable Gpose UI Hide", ref disableGposeUiHide))
+        if (ImGui.Checkbox(Loc.Label("DisableGposeUIHide"), ref disableGposeUiHide))
         {
             config.DisableGposeUiHide = disableGposeUiHide;
             config.Save();
         }
         
         var displayDebugInfo = config.DisplayDebugInfo;
-        if (ImGui.Checkbox("Display Debug Info", ref displayDebugInfo))
+        if (ImGui.Checkbox(Loc.Label("DisplayDebugInfo"), ref displayDebugInfo))
         {
             config.DisplayDebugInfo = displayDebugInfo;
             config.Save();
         }
         
         var openFolderOnExport = config.OpenFolderOnExport;
-        if (ImGui.Checkbox("Open Folder on export completion", ref openFolderOnExport))
+        if (ImGui.Checkbox(Loc.Label("OpenFolderOnExportCompletion"), ref openFolderOnExport))
         {
             config.OpenFolderOnExport = openFolderOnExport;
             config.Save();

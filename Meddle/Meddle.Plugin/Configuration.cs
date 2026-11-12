@@ -31,6 +31,7 @@ public partial class Configuration : IPluginConfiguration
     private IDalamudPluginInterface PluginInterface { get; set; } = null!;
 
     public int Version { get; set; } = 5;
+    public UiLanguage Language { get; set; } = UiLanguage.Auto;
     
     public bool OpenDebugMenuOnLoad { get; set; }
     public LogLevel MinimumNotificationLogLevel { get; set; } = LogLevel.Warning;

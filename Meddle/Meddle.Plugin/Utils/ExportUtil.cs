@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.ImGuiNotification;
 using Meddle.Plugin.Models;
@@ -37,7 +37,7 @@ public static class ExportUtil
         var notification = cancellationToken.IsCancellationRequested
                                ? new Notification
                                {
-                                   Content = $"Export to {path} was cancelled.",
+                                   Content = Loc.Format("ExportCancelled", path),
                                    Type = NotificationType.Warning,
                                    RespectUiHidden = false,
                                    ShowIndeterminateIfNoExpiry = true,
@@ -45,7 +45,7 @@ public static class ExportUtil
                                }
                                : new Notification
                                {
-                                   Content = $"Exported files to {path}",
+                                   Content = Loc.Format("ExportSucceeded", path),
                                    Type = NotificationType.Success,
                                    RespectUiHidden = false,
                                    ShowIndeterminateIfNoExpiry = true,
@@ -63,7 +63,7 @@ public static class ExportUtil
         return;
         void DrawOpenFolderButton()
         {
-            if (ImGui.Button("Open Folder"))
+            if (ImGui.Button(Loc.Label("OpenFolder")))
             {
                 OpenFolder(path);
                 activeNotification.DismissNow();

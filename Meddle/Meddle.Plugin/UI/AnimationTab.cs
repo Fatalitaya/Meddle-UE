@@ -1,4 +1,4 @@
-﻿using Dalamud.Game.ClientState.Objects.Types;
+using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Interface.ImGuiFileDialog;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Plugin.Services;
@@ -70,7 +70,7 @@ public class AnimationTab : ITab
         this.framework.Update += OnFrameworkUpdate;
     }
 
-    public string Name => "Animation";
+    public string Name => Loc.Text("Animation");
     public int Order => (int) WindowOrder.Animation;
 
     private List<ICharacter> selectedCharacters = [];
@@ -84,15 +84,15 @@ public class AnimationTab : ITab
         }
         if (exportError != null) ImGui.TextWrapped(exportError);
         using (ImRaii.Disabled(nativeExportTask != null))
-        if (ImGui.CollapsingHeader("Bake PAP to UE assets"))
+        if (ImGui.CollapsingHeader(Loc.Label("BakePAPToUEAssets")))
         {
-            ImGui.InputText("PAP file", ref papPath, 2048);
-            ImGui.InputText("Matching SKLB file", ref sklbPath, 2048);
-            ImGui.Checkbox("In place", ref papInPlace);
-            ImGui.Checkbox("60 fps (otherwise 30)##PAP", ref sixtyFps);
-            if (ImGui.Button("Bake all PAP clips"))
+            ImGui.InputText(Loc.Label("PAPFile"), ref papPath, 2048);
+            ImGui.InputText(Loc.Label("MatchingSKLBFile"), ref sklbPath, 2048);
+            ImGui.Checkbox(Loc.Label("InPlace"), ref papInPlace);
+            ImGui.Checkbox(Loc.Label("60FpsOtherwise30PAP"), ref sixtyFps);
+            if (ImGui.Button(Loc.Label("BakeAllPAPClips")))
             {
-                fileDialog.SaveFolderDialog("Save UE animations", "PapAnimations", (result, path) =>
+                fileDialog.SaveFolderDialog(Loc.Text("SaveUEAnimations"), "PapAnimations", (result, path) =>
                 {
                     if (!result) return;
                     try
@@ -126,7 +126,7 @@ public class AnimationTab : ITab
         }
         commonUi.DrawMultiCharacterSelect(ref selectedCharacters);
         
-        if (ImGui.InputInt("Interval (ms)", ref intervalMs, 10, 100))
+        if (ImGui.InputInt(Loc.Label("IntervalMs"), ref intervalMs, 10, 100))
         {
             if (intervalMs < 1) intervalMs = 1;
             if (intervalMs > 1000) intervalMs = 1000;
@@ -134,11 +134,11 @@ public class AnimationTab : ITab
 
         switch (captureAnimation)
         {
-            case true when ImGui.Button("Stop Capture"):
+            case true when ImGui.Button(Loc.Label("StopCapture")):
                 captureAnimation = false;
                 logger.LogInformation("Stopped capturing animation");
                 break;
-            case false when ImGui.Button("Start Capture"):
+            case false when ImGui.Button(Loc.Label("StartCapture")):
                 captureAnimation = true;
                 logger.LogInformation("Capturing animation");
                 break;
@@ -146,16 +146,16 @@ public class AnimationTab : ITab
         
                 
         ImGui.SameLine();
-        if (ImGui.Button("Clear"))
+        if (ImGui.Button(Loc.Label("Clear")))
         {
             frames.Clear();
         }
 
         ImGui.SameLine();
         var frameCount = frames.Count;
-        ImGui.Text($"Frames: {frameCount}");
+        ImGui.Text(Loc.Format("Frames", frameCount));
         
-        if (ImGui.Button("Export"))
+        if (ImGui.Button(Loc.Label("Export")))
         {
             requestedPopup = true;
             var folderName = $"Animation-{DateTime.Now:yyyy-MM-dd-HH-mm-ss}";
@@ -167,21 +167,21 @@ public class AnimationTab : ITab
                 }
                 try
                 {
-                    ImGui.Checkbox("Include Positional Data", ref includePositionalData);
-                    ImGui.Checkbox("UE 5.8.3 assets", ref nativeAssets);
-                    if (nativeAssets) ImGui.Checkbox("Bake at 60 fps (otherwise 30)", ref sixtyFps);
+                    ImGui.Checkbox(Loc.Label("IncludePositionalData"), ref includePositionalData);
+                    ImGui.Checkbox(Loc.Label("UE583Assets"), ref nativeAssets);
+                    if (nativeAssets) ImGui.Checkbox(Loc.Label("BakeAt60FpsOtherwise30"), ref sixtyFps);
                     
                     using (var disabled = ImRaii.Disabled(!includePositionalData))
                     {
-                        ImGui.Checkbox("Absolute Position", ref includeAbsolutePosition);
+                        ImGui.Checkbox(Loc.Label("AbsolutePosition"), ref includeAbsolutePosition);
                         ImGui.SameLine();
-                        UiUtil.HintCircle("When checked, the position will be treated as world position, otherwise it will be relative to the first frame.");
+                        UiUtil.HintCircle(Loc.Text("WhenCheckedThePositionWillBeTreatedAsWorldPosition"));
                     }
                     
-                    if (ImGui.Button("Export"))
+                    if (ImGui.Button(Loc.Label("Export")))
                     {
                         var settings = new AnimationExportSettings(includePositionalData, includeAbsolutePosition, folderName, nativeAssets, sixtyFps ? 60 : 30);
-                        fileDialog.SaveFolderDialog("Save Animation", folderName, (result, path) =>
+                        fileDialog.SaveFolderDialog(Loc.Text("SaveAnimation"), folderName, (result, path) =>
                         {
                             if (!result) return;
                             var snapshot = frames.ToList();
@@ -192,7 +192,7 @@ public class AnimationTab : ITab
                         ImGui.CloseCurrentPopup();
                     }
                     ImGui.SameLine();
-                    if (ImGui.Button("Cancel"))
+                    if (ImGui.Button(Loc.Label("Cancel")))
                     {
                         drawExportSettingsCallback = null;
                         ImGui.CloseCurrentPopup();

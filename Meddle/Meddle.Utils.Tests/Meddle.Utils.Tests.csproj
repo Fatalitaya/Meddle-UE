@@ -16,6 +16,8 @@
     </ItemGroup>
 
     <ItemGroup>
+        <Compile Include="../Meddle.Plugin/Localization/Loc.cs" Link="Localization/Loc.cs" />
+        <EmbeddedResource Include="../Meddle.Plugin/Localization/*.json" LogicalName="Meddle.Plugin.Localization.%(Filename)%(Extension)" />
         <ProjectReference Include="..\Meddle.Utils\Meddle.Utils.csproj" />
         <ProjectReference Include="..\Meddle.Formats\Meddle.Formats.csproj" />
         <ProjectReference Include="..\Meddle.SqPack\Meddle.SqPack.csproj" />

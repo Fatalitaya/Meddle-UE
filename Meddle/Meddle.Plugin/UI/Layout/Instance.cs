@@ -18,8 +18,8 @@ public partial class LayoutWindow
         using var table =
             ImRaii.Table("##layoutTable", 2, ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.RowBg | 
                                              ImGuiTableFlags.Reorderable);
-        ImGui.TableSetupColumn("Data", ImGuiTableColumnFlags.WidthStretch);
-        ImGui.TableSetupColumn("Options");
+        ImGui.TableSetupColumn(Loc.Label("Data"), ImGuiTableColumnFlags.WidthStretch);
+        ImGui.TableSetupColumn(Loc.Label("Options"));
         
         foreach (var instance in instances
                      .Take(config.LayoutConfig.MaxItemCount))

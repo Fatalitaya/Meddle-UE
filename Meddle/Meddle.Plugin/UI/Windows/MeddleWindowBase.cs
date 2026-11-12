@@ -32,7 +32,7 @@ public abstract class MeddleWindowBase : Window
         using var tabBar = ImRaii.TabBar($"##{WindowName}tabs", ImGuiTabBarFlags.Reorderable);
         foreach (var tab in GetTabs())
         {
-            using var tabItem = ImRaii.TabItem(tab.Name);
+            using var tabItem = ImRaii.TabItem(tab.Name + "###" + tab.GetType().Name);
             try
             {
                 if (tabItem)
@@ -49,7 +49,7 @@ public abstract class MeddleWindowBase : Window
                     log.LogError(e, "Failed to draw {TabName} tab", tab.Name);
                 }
 
-                ImGui.TextColored(new Vector4(1, 0, 0, 1), $"Failed to draw {tab.Name} tab");
+                ImGui.TextColored(new Vector4(1, 0, 0, 1), Loc.Format("TabDrawFailed", tab.Name));
                 ImGui.TextWrapped(e.ToString());
             }
         }

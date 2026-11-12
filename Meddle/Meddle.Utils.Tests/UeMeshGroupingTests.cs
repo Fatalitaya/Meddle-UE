@@ -68,6 +68,30 @@ public sealed class UeMeshGroupingTests
     }
 
     [TestMethod]
+    public void AppearanceExportReturnsMaterialSlotsWithoutDuplicatingStaticGeometry()
+    {
+        var scene = new SceneBuilder();
+        var mesh = new MeshBuilder<VertexPositionNormal,VertexEmpty,VertexEmpty>("Local");
+        mesh.UsePrimitive(new MaterialBuilder("Variant")).AddTriangle(
+            new VertexPositionNormal(Vector3.Zero,Vector3.UnitZ),
+            new VertexPositionNormal(Vector3.UnitX,Vector3.UnitZ),
+            new VertexPositionNormal(Vector3.UnitY,Vector3.UnitZ));
+        scene.AddRigidMesh(mesh, Matrix4x4.Identity);
+        var directory = Path.Combine(Path.GetTempPath(), "MeddleAppearance_" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var slots = new List<string>();
+            NativeAssetExporter.Export(scene.ToGltf2(), directory, "Variant", writeStaticMeshes: false, staticMaterialSlots: slots);
+            Assert.AreEqual(1, slots.Count);
+            Assert.AreEqual("/Game/Meddle/Variant/Materials/M_0_Variant", slots[0]);
+            Assert.IsTrue(File.Exists(Path.Combine(directory, "Content/Meddle/Variant/Materials/M_0_Variant.uasset")));
+            Assert.IsFalse(Directory.Exists(Path.Combine(directory, "Content/Meddle/Variant/Meshes")));
+            Assert.IsFalse(Directory.Exists(Path.Combine(directory, "Content/Meddle/Variant/Skeletons")));
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
+    [TestMethod]
     public void MixedSceneKeepsStaticAndSkinnedAssetsSeparateInEveryMergeMode()
     {
         var scene = new SceneBuilder();

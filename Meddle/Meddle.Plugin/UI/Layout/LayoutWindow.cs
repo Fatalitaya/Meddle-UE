@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using Dalamud.Interface;
 using Dalamud.Interface.ImGuiFileDialog;
 using Dalamud.Interface.Utility.Raii;
@@ -85,7 +85,7 @@ public partial class LayoutWindow : ITab
     }
 
 
-    public string Name => "Layout";
+    public string Name => Loc.Text("Layout");
     public int Order => (int)WindowOrder.Layout;
     public MenuType MenuType => MenuType.Default;
 
@@ -107,12 +107,12 @@ public partial class LayoutWindow : ITab
 
             DrawOptions();
 
-            if (ImGui.CollapsingHeader("Selected"))
+            if (ImGui.CollapsingHeader(Loc.Label("Selected")))
             {
                 DrawSelected();
             }
 
-            if (ImGui.CollapsingHeader("All"))
+            if (ImGui.CollapsingHeader(Loc.Label("All")))
             {
                 DrawAll();
             }
@@ -138,13 +138,13 @@ public partial class LayoutWindow : ITab
                 log.LogError(e, "Failed to draw Layout window");
             }
 
-            ImGui.TextColored(new Vector4(1, 0, 0, 1), "Failed to draw Layout window");
+            ImGui.TextColored(new Vector4(1, 0, 0, 1), Loc.Text("FailedToDrawLayoutWindow"));
             ImGui.TextWrapped(e.ToString());
         }
     }
     private void DrawAll()
     {
-        ImGui.InputText("Search", ref search, 100);
+        ImGui.InputText(Loc.Label("Search"), ref search, 100);
 
         using var id = ImRaii.PushId("layoutTable");
         var set = currentLayout
@@ -208,9 +208,9 @@ public partial class LayoutWindow : ITab
             }
         }
 
-        ExportButton($"Export {items.Length} instance(s)", items);
+        ExportButton(Loc.LabelFormat("ExportInstances", items.Length), items);
         ImGui.SameLine();
-        if (ImGui.Button($"Add {items.Length} instance(s) to selection"))
+        if (ImGui.Button(Loc.LabelFormat("AddInstances", items.Length)))
         {
             foreach (var item in items)
             {
@@ -218,7 +218,7 @@ public partial class LayoutWindow : ITab
             }
         }
         ImGui.SameLine();
-        ImGui.Text($"Total: {count}");
+        ImGui.Text(Loc.Format("Total", count));
 
         DrawInstanceTable(items, DrawLayoutButtons);
     }
@@ -226,15 +226,15 @@ public partial class LayoutWindow : ITab
     {
         if (selectedInstances.Count == 0)
         {
-            ImGui.Text("No instances selected");
+            ImGui.Text(Loc.Text("NoInstancesSelected"));
         }
 
         using var disabled = ImRaii.Disabled(selectedInstances.Count == 0);
         using var id = ImRaii.PushId("selectedTable");
-        ExportButton($"Export {selectedInstances.Count} instance(s)", selectedInstances.Values);
+        ExportButton(Loc.LabelFormat("ExportInstances", selectedInstances.Count), selectedInstances.Values);
 
         ImGui.SameLine();
-        if (ImGui.Button("Clear all"))
+        if (ImGui.Button(Loc.Label("ClearAll")))
         {
             selectedInstances.Clear();
         }
@@ -298,7 +298,7 @@ public partial class LayoutWindow : ITab
 
             if (ImGui.IsItemHovered())
             {
-                ImGui.SetTooltip("Resolve this instance");
+                ImGui.SetTooltip(Loc.Text("ResolveThisInstance"));
             }
         }
 
@@ -399,7 +399,7 @@ public partial class LayoutWindow : ITab
                 flags |= UiUtil.ExportConfigDrawFlags.ShowTerrainOptions;
             }
             
-            ImGui.Checkbox("Export UE Assets", ref exportUeAssets);
+            ImGui.Checkbox(Loc.Label("ExportUEAssets"), ref exportUeAssets);
             var drawFlags = exportUeAssets ? (flags & ~UiUtil.ExportConfigDrawFlags.ShowExportPose) | UiUtil.ExportConfigDrawFlags.NativeAssets : flags;
             if (UiUtil.DrawExportConfig(exportConfig, drawFlags))
             {
@@ -409,15 +409,15 @@ public partial class LayoutWindow : ITab
 
             if (exportUeAssets)
             {
-                ImGui.Combo("模型组合", ref ueMeshMergeMode, "全部合并\0按部位合并\0不合并\0");
-                ImGui.TextWrapped("每个实例分别导出；全部合并时使用实例名，其余使用部位或模型名。保留场景位置。无蒙皮物件导出为 Static Mesh，带蒙皮实例导出为 Skeletal Mesh；混合组分别合并。灯光、相机和投影贴花不包含在模型导出中。");
+                ImGui.Combo(Loc.Label("ModelMerge"), ref ueMeshMergeMode, Loc.Text("ModelMergeChoices"));
+                ImGui.TextWrapped(Loc.Text("LayoutExportHint"));
                 if (!instances.Any(UeInstanceExportService.HasGeometry))
-                    ImGui.TextWrapped("所选实例没有可导出的模型。");
+                    ImGui.TextWrapped(Loc.Text("NoExportableModels"));
             }
 
             using (ImRaii.Disabled(exportUeAssets && !instances.Any(UeInstanceExportService.HasGeometry)))
             {
-                if (ImGui.Button("Export"))
+                if (ImGui.Button(Loc.Label("Export")))
                 {
                     exportConfig.UseDeformer = true;
                     if (!flags.HasFlag(UiUtil.ExportConfigDrawFlags.ShowExportPose))
@@ -459,7 +459,7 @@ public partial class LayoutWindow : ITab
 
                     var defaultName = $"InstanceExport-{DateTime.Now:yyyy-MM-dd-HH-mm-ss}";
                     cancelToken = new CancellationTokenSource();
-                    fileDialog.SaveFolderDialog("Save Instances", defaultName,
+                    fileDialog.SaveFolderDialog(Loc.Text("SaveInstances"), defaultName,
                                                 (result, path) =>
                                                 {
                                                     if (!result) return;
@@ -483,7 +483,7 @@ public partial class LayoutWindow : ITab
 
             }
             ImGui.SameLine();
-            if (ImGui.Button("Cancel"))
+            if (ImGui.Button(Loc.Label("Cancel")))
             {
                 drawExportSettingsCallback = null;
                 ImGui.CloseCurrentPopup();
