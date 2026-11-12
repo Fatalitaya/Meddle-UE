@@ -313,7 +313,7 @@ public sealed class TerritoryTab : ITab
                         }
                         token.ThrowIfCancellationRequested();
                         var report = result.Report;
-                        territorySummary = Loc.Format("TerritoryComplete", groups.Length, report.StaticModels, report.RuntimeModels, report.HousingModels, report.MissingResources.Count, report.UnmatchedRuntimeChildren);
+                        territorySummary = Loc.Format("TerritoryComplete", groups.Length, report.StaticModels, report.RuntimeModels, report.HousingModels, report.MissingResources.Count, report.UnmatchedRuntimeChildren, report.StaticLights, report.RuntimeLights);
                         ExportUtil.OpenExportFolderInExplorer(destination, config, token);
                     }, token).ConfigureAwait(false);
                 }

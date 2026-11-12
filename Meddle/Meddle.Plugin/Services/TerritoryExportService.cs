@@ -4,6 +4,7 @@ using Lumina.Excel.Sheets;
 using Meddle.Formats.Files;
 using Meddle.Plugin.Models;
 using Meddle.Plugin.Models.Layout;
+using Meddle.Plugin.Models.Structs;
 using Meddle.Utils.Export;
 using static Meddle.Plugin.Services.LayoutService;
 
@@ -27,8 +28,11 @@ public sealed class TerritoryExportService(IDataManager excel, SqPack.SqPack pac
         public uint FilterKey { get; init; }
         public TerritorySceneFile.Festival[] Festivals { get; init; } = [];
         public bool ComparedWithRuntime { get; init; }
+        public HousingLightState? HousingLighting { get; init; }
         public int StaticModels { get; set; }
         public int RuntimeModels { get; set; }
+        public int StaticLights { get; set; }
+        public int RuntimeLights { get; set; }
         public int MatchedRuntimeInstances { get; set; }
         public int InactiveInstances { get; set; }
         public int UnmatchedRuntimeChildren { get; set; }
@@ -62,6 +66,8 @@ public sealed class TerritoryExportService(IDataManager excel, SqPack.SqPack pac
             else if (instance is ParsedBgPartsInstance bg)
                 entries.Add(new(bg, bg.Path.FullPath, bg.BgChangeMaterial?.MaterialPath ?? "",
                     bg.BgChangeMaterial?.BGChangeMaterialIndex ?? -1, bg.Stain?.RowId ?? 0, layer, bg.BgStainLinear, bg.LayoutColor, bg.BgEmissivePower));
+            else if (instance is ParsedLightInstance light)
+                entries.Add(new(light, $"Lights/{light.Light.LightType}", "", -1, 0, layer));
         }
         return TerritoryGrouping.Build(entries, mode);
     }
@@ -116,7 +122,8 @@ public sealed class TerritoryExportService(IDataManager excel, SqPack.SqPack pac
             .FirstOrDefault(f => f.TerritoryId == runtime.TerritoryId && f.ContentId == runtime.ContentId)?.Key ?? runtime.FilterKey;
         if (runtimeKey != filterKey) runtime = null;
         var report = new Report { TerritoryId = document.Territory.Id, FilterKey = filterKey,
-            Festivals = festivals.ToArray(), ComparedWithRuntime = runtime != null };
+            Festivals = festivals.ToArray(), ComparedWithRuntime = runtime != null,
+            HousingLighting = runtime?.HousingLighting };
         var output = new List<ParsedInstance>();
         var origins = new Dictionary<nint, string>();
         var origin = "Terrain";
@@ -183,12 +190,13 @@ public sealed class TerritoryExportService(IDataManager excel, SqPack.SqPack pac
         return new(output.ToArray(), report, origins);
 
         void Add(TerritorySceneFile.Instance item, Matrix4x4 parent, TerritoryRuntimeNode? live,
-            ParsedStain? inheritedStain = null)
+            ParsedStain? inheritedStain = null, float? housingLightMultiplier = null)
         {
             token.ThrowIfCancellationRequested();
+            housingLightMultiplier = live?.HousingLightMultiplier ?? housingLightMultiplier;
             if (live is { IsHousing: true, Children.Length: > 0 })
             {
-                AddHousing(live);
+                AddHousing(live, housingLightMultiplier);
                 return;
             }
             if (live != null && !handledRuntime.Add(live)) return;
@@ -196,6 +204,15 @@ public sealed class TerritoryExportService(IDataManager excel, SqPack.SqPack pac
             if (live is { Active: false }) { report.InactiveInstances++; return; }
             var stain = live?.Stain ?? inheritedStain;
             var world = item.LocalMatrix * parent;
+            if (item.Light is { } source)
+            {
+                // Runtime intensity/range already include housing dimming. Only file fallback
+                // descendants of a captured controlled group need the layout multiplier.
+                var data = live?.Light?.WithSource(source) ?? ParsedRenderLight.FromFile(source,
+                    housingLightMultiplier ?? 1, runtime?.HousingLighting);
+                AddLight(data, live?.Transform ?? new Transform(world), live?.Light != null);
+                return;
+            }
             if (item.Type == 1)
             {
                 if (live != null)
@@ -246,23 +263,28 @@ public sealed class TerritoryExportService(IDataManager excel, SqPack.SqPack pac
                         && string.Equals(n.Path, child.Path, StringComparison.OrdinalIgnoreCase)).ToArray() ?? [];
                     var childLive = candidates.Length == 1 ? candidates[0] : null;
                     if (childLive != null) used.Add(childLive);
-                    Add(child, world, childLive, stain);
+                    Add(child, world, childLive, stain, housingLightMultiplier);
                 }
                 if (live != null) report.UnmatchedRuntimeChildren += live.Children.Count(n => !used.Contains(n));
             }
             finally { stack.Remove(path); }
         }
 
-        void AddRuntime(TerritoryRuntimeNode node)
+        void AddRuntime(TerritoryRuntimeNode node, float? housingLightMultiplier = null)
         {
             token.ThrowIfCancellationRequested();
+            housingLightMultiplier = node.HousingLightMultiplier ?? housingLightMultiplier;
             if (node is { IsHousing: true, Children.Length: > 0 })
             {
-                AddHousing(node);
+                AddHousing(node, housingLightMultiplier);
                 return;
             }
             if (!node.Active) { report.InactiveInstances++; return; }
-            if (node.Type == 1)
+            if (node.Light is { } light)
+            {
+                if (handledRuntime.Add(node)) AddLight(light, node.Transform, true);
+            }
+            else if (node.Type == 1)
             {
                 if (!handledRuntime.Add(node)) return;
                 var path = node.Model?.Path.FullPath ?? node.Path;
@@ -270,41 +292,65 @@ public sealed class TerritoryExportService(IDataManager excel, SqPack.SqPack pac
             }
             else if (!string.IsNullOrEmpty(node.Path))
                 Add(new TerritorySceneFile.Instance(6, node.InstanceId, node.Path, Vector3.Zero,
-                    Vector3.Zero, Vector3.One, node.Path, 0), Matrix4x4.Identity, node);
+                    Vector3.Zero, Vector3.One, node.Path, 0), Matrix4x4.Identity, node,
+                    housingLightMultiplier: housingLightMultiplier);
         }
 
-        void AddHousing(TerritoryRuntimeNode root)
+        void AddHousing(TerritoryRuntimeNode root, float? housingLightMultiplier = null)
         {
             if (handledRuntime.Contains(root)) return;
             report.HousingRoots++;
-            Visit(root, root.Stain);
-            void Visit(TerritoryRuntimeNode node, ParsedStain? inheritedStain)
+            Visit(root, root.Stain, housingLightMultiplier);
+            void Visit(TerritoryRuntimeNode node, ParsedStain? inheritedStain, float? lightMultiplier)
             {
                 token.ThrowIfCancellationRequested();
+                lightMultiplier = node.HousingLightMultiplier ?? lightMultiplier;
                 if (!handledRuntime.Add(node)) return;
                 if (!node.Active) { report.InactiveInstances++; return; }
                 var stain = node.Stain ?? inheritedStain;
+                if (node.Light is { } light)
+                {
+                    AddLight(light, node.Transform, true);
+                    return;
+                }
                 if (node.Type == 1)
                 {
                     var before = output.Count;
                     AddModel(node.Model?.Path.FullPath ?? node.Path,
                         node.Transform.AffineTransform.Matrix, node.Model, stain);
-                    report.HousingModels += output.Count - before;
+                    report.HousingModels += output.Skip(before).Count(i => i is ParsedBgPartsInstance);
                     return;
                 }
                 // GetTransformImpl already includes all parent translation, rotation
                 // and scale. Only file-owned SGB transforms need composition.
-                foreach (var child in node.Children) Visit(child, stain);
+                foreach (var child in node.Children) Visit(child, stain, lightMultiplier);
                 // Unloaded groups still need their resource data. Loaded children are
                 // authoritative: never add the default prefab alongside replacements.
                 if (node.Children.Length == 0 && node.Path.Length != 0)
                 {
                     handledRuntime.Remove(node);
                     var before = output.Count;
-                    AddRuntime(node);
-                    report.HousingModels += output.Count - before;
+                    AddRuntime(node, lightMultiplier);
+                    report.HousingModels += output.Skip(before).Count(i => i is ParsedBgPartsInstance);
                 }
             }
+        }
+
+        void AddLight(ParsedRenderLight data, Transform transform, bool live)
+        {
+            if ((uint)data.LightType is < 1 or > 6)
+            {
+                report.Warnings.Add($"跳过未知灯光类型 {(uint)data.LightType}");
+                return;
+            }
+            var instance = new ParsedLightInstance(Id(), transform, data);
+            output.Add(instance);
+            origins[instance.Id] = origin;
+            if (live) report.RuntimeLights++; else report.StaticLights++;
+            if (data.LightType is LightType.AreaLight or LightType.CapsuleLight or LightType.Specular)
+                report.Warnings.Add("面光、线光和仅高光灯使用目标格式近似类型；原始参数保留在灯光元数据中。");
+            if (data.Source?.TexturePath.Length > 0)
+                report.Warnings.Add("灯光投影纹理仅保留资源路径，未转换为目标引擎的投影材质。");
         }
 
         void AddModel(string path, Matrix4x4 world, ParsedBgPartsInstance? live, ParsedStain? stain)

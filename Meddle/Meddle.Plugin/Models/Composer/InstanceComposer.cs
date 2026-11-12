@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -738,69 +738,11 @@ public class InstanceComposer
     
     public NodeBuilder? ComposeLight(ParsedLightInstance instance, SceneBuilder scene)
     {
-        if (instance.Light.Range <= 0)
-        {
-            // Plugin.Logger.LogWarning("Light {LightId} has a range of 0 or less ({Range})", instance.Id, instance.Light.Range);
-            return null;
-        }
-        
-        var root = new NodeBuilder();
-        var transform = instance.Transform;
-        
-        // idk if its blender, sharpgltf or game engine stuff but flip the rotation for lights (only tested spot though)
-        var rotation = transform.Rotation;
-        rotation *= Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI);
-                
-        transform = transform with {Rotation = rotation};
         var light = instance.Light;
-        
-        root.Name = $"Light_{instance.Type}_{light.LightType}_{instance.Id}";
-        
-        LightBuilder? lightBuilder;
-        switch (light.LightType)
-        {
-            case LightType.Directional:
-                lightBuilder = new LightBuilder.Directional
-                {
-                    Color = light.Color.Rgb,
-                    Intensity = light.Color.HdrIntensity,
-                    Name = root.Name,
-                };
-                break;
-            case LightType.PointLight:
-            // TODO: Capsule and area dont belong here but there isn't a gltf equivalent
-            case LightType.CapsuleLight:
-            case LightType.AreaLight:
-                lightBuilder = new LightBuilder.Point
-                {
-                    Color = light.Color.Rgb,
-                    Intensity = light.Color.HdrIntensity,
-                    Range = light.Range,
-                    Name = root.Name
-                };
-                break;
-            case LightType.SpotLight:
-                var (outerConeAngle, innerConeAngle) = FixSpotLightAngles(
-                    DegreesToRadians(light.LightAngle + light.FalloffAngle), 
-                    DegreesToRadians(light.LightAngle));
-                
-                lightBuilder = new LightBuilder.Spot
-                {
-                    Color = light.Color.Rgb,
-                    Intensity = light.Color.HdrIntensity,
-                    Range = light.Range,
-                    InnerConeAngle = innerConeAngle,
-                    OuterConeAngle = outerConeAngle,
-                    Name = root.Name
-                };
-                break;
-            default:
-                Plugin.Logger.LogWarning("Unsupported light type: {LightType}", light.LightType);
-                return null;
-        }
-
+        var name = $"Light_{instance.Type}_{light.LightType}_{instance.Id}";
         var extras = new Dictionary<string, object>()
         {
+            { "SourceTransform", instance.Transform },
             { "LightType", light.LightType.ToString() },
             { "Range", light.Range },
             { "FalloffType", light.FalloffType.ToString() },
@@ -825,40 +767,11 @@ public class InstanceComposer
             extras.Add(lightFlag.ToString(), light.Flags.HasFlag(lightFlag));
         }
         
-        // doesn't appear to set extras on the light itself
-        lightBuilder.Extras = JsonNode.Parse(JsonSerializer.Serialize(extras, MaterialComposer.JsonOptions));
-        
-        root.Extras = JsonNode.Parse(JsonSerializer.Serialize(extras, MaterialComposer.JsonOptions));
-        
-        scene.AddLight(lightBuilder, root);
-        root.SetLocalTransform(transform.AffineTransform, true);
-        
-        return root;
-
-        float DegreesToRadians(float degrees)
-        {
-            return degrees * (MathF.PI / 180f);
-        }
-        
-        (float outer, float inner) FixSpotLightAngles(float outerConeAngle, float innerConeAngle)
-        {                    
-            // inner must be less than or equal to outer
-            // outer (due to blender bug and sharpgltf removing if the value is equal to the default) needs to be greater than inner and not equal to pi / 4
-            // TODO: https://github.com/KhronosGroup/glTF-Blender-IO/issues/2349
-            if (innerConeAngle > outerConeAngle)
-            {
-                throw new Exception("Inner cone angle must be less than or equal to outer cone angle");
-            }
-        
-            if (MathF.Abs(outerConeAngle - (MathF.PI / 4f)) < 0.0001f)
-            {
-                outerConeAngle = (MathF.PI / 4f) - 0.0001f;
-            }
-        
-            outerConeAngle = Math.Clamp(outerConeAngle, 0.0002f, (MathF.PI / 2f) - 0.0001f);
-            innerConeAngle = Math.Clamp(innerConeAngle, 0.0001f, outerConeAngle  - 0.0001f);
-        
-            return (outerConeAngle, innerConeAngle);
-        }
+        if (light.Source != null) extras["FileLight"] = light.Source;
+        if (light.HousingLighting != null) extras["HousingLighting"] = light.HousingLighting;
+        return Meddle.Utils.Export.SceneLightExport.Add(scene, name, instance.Transform.AffineTransform.Matrix,
+            (uint)light.LightType, light.Color._vec3, light.Color.Intensity, light.Range,
+            light.LightAngle, light.FalloffAngle,
+            JsonNode.Parse(JsonSerializer.Serialize(extras, MaterialComposer.JsonOptions)));
     }
 }

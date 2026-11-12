@@ -6,18 +6,25 @@ namespace Meddle.Unreal;
 
 public sealed record LevelMeshInstances(string Name, string MeshPath, Matrix4x4[] Transforms, string[] Materials);
 public sealed record LevelActor(string Name, Vector3 Origin, LevelMeshInstances[] Components);
+public enum LevelLightType { Point, Spot, Directional }
+public sealed record LevelLight(string Name, LevelLightType Type, Vector3 Position, Vector3 Direction,
+    Vector3 Color, float Intensity, float Range, float InnerCone, float OuterCone, bool CastShadows,
+    bool Specular, string? Metadata = null);
 
 /// <summary>Editable non-partitioned UE map. All input transforms are in UE centimetres.</summary>
 public static class LevelWriter
 {
-    public static void Write(string file, string packagePath, LevelActor[] actors)
+    public static void Write(string file, string packagePath, LevelActor[] actors, LevelLight[]? lights = null)
     {
+        lights ??= [];
         var p = new AssetPackage(packagePath);
         p.Asset.PackageFlags |= EPackageFlags.PKG_ContainsMap;
         p.Asset.CustomVersionContainer.Add(new CustomVersion(UAPUtils.GUID(0xB02B49B5, 0xBB2044E9, 0xA30432B7, 0x52E40360), 1) { IsSerialized = true });
         var actorIndices = new List<int> { 3 };
         var next = 4;
         foreach (var actor in actors) { actorIndices.Add(next); next += 2 + actor.Components.Length; }
+        var lightIndices = new List<int>();
+        foreach (var light in lights) { lightIndices.Add(next); actorIndices.Add(next); next += 2; }
         p.AddObject(p.Name, "World", _ => { }, p.Bytes(w => { w.Write(2); w.Write(0); w.Write(0); }));
         p.AddObject("PersistentLevel", "Level", w =>
         {
@@ -79,6 +86,52 @@ public static class LevelWriter
                 }), outer: actorIndex);
             }
         }
+        for (var i = 0; i < lights.Length; i++)
+        {
+            var light = lights[i];
+            var actorIndex = lightIndices[i];
+            var type = light.Type + "Light";
+            p.AddObject($"Light_{i}", type, w =>
+            {
+                p.Property(w, "ActorLabel", p.Bytes(b => b.Write(new FString(light.Name))), ("StrProperty", 0));
+                p.ObjectProperty(w, "RootComponent", actorIndex + 1);
+                p.ObjectProperty(w, "LightComponent", actorIndex + 1);
+                if (light.Type == LevelLightType.Point) p.ObjectProperty(w, "PointLightComponent", actorIndex + 1);
+                if (light.Type == LevelLightType.Spot) p.ObjectProperty(w, "SpotLightComponent", actorIndex + 1);
+            }, [], outer: 2);
+            p.AddObject("LightComponent0", type + "Component", w =>
+            {
+                // The source placement is static; Movable makes the imported lights usable with Lumen without a bake.
+                p.EnumProperty(w, "Mobility", "EComponentMobility", "Movable");
+                p.EnumProperty(w, "CreationMethod", "EComponentCreationMethod", "Native");
+                VectorProperty(w, "RelativeLocation", light.Position);
+                var direction = Vector3.Normalize(light.Direction);
+                var pitch = Math.Atan2(direction.Z, Math.Sqrt(direction.X * direction.X + direction.Y * direction.Y)) * 180 / Math.PI;
+                var yaw = Math.Atan2(direction.Y, direction.X) * 180 / Math.PI;
+                p.NativeProperty(w, "RelativeRotation", p.Bytes(b => { b.Write(pitch); b.Write(yaw); b.Write(0d); }),
+                    ("StructProperty", 1), ("Rotator", 1), ("/Script/CoreUObject", 0));
+                p.NativeProperty(w, "LightColor", p.Bytes(b =>
+                {
+                    b.Write(Srgb(light.Color.Z)); b.Write(Srgb(light.Color.Y)); b.Write(Srgb(light.Color.X)); b.Write((byte)255);
+                }), ("StructProperty", 1), ("Color", 1), ("/Script/CoreUObject", 0));
+                Float(w, "Intensity", light.Intensity);
+                Float(w, "SpecularScale", light.Specular ? 1 : 0);
+                p.BoolProperty(w, "CastShadows", light.CastShadows);
+                p.BoolProperty(w, "CastDynamicShadows", light.CastShadows);
+                if (light.Type != LevelLightType.Directional)
+                {
+                    p.EnumProperty(w, "IntensityUnits", "ELightUnits", "Candelas");
+                    p.BoolProperty(w, "bUseInverseSquaredFalloff", true);
+                    Float(w, "AttenuationRadius", light.Range);
+                }
+                if (light.Type == LevelLightType.Spot)
+                {
+                    Float(w, "InnerConeAngle", light.InnerCone);
+                    Float(w, "OuterConeAngle", light.OuterCone);
+                }
+            }, [], outer: actorIndex);
+            p.Asset.Exports[^1].ObjectFlags |= EObjectFlags.RF_DefaultSubObject;
+        }
         p.AddObject("Model", "Model", _ => { }, p.Bytes(w =>
         {
             w.Write((ushort)0);
@@ -93,6 +146,9 @@ public static class LevelWriter
         }), outer: 2);
         p.Save(file);
 
+        void Float(AssetBinaryWriter w, string name, float value) =>
+            p.Property(w, name, p.Bytes(b => b.Write(value)), ("FloatProperty", 0));
+
         void Objects(AssetBinaryWriter w, string name, int[] values) => p.Property(w, name,
             p.Bytes(b => { b.Write(values.Length); foreach (var value in values) b.Write(value); }),
             ("ArrayProperty", 1), ("ObjectProperty", 0));
@@ -104,6 +160,13 @@ public static class LevelWriter
         void VectorProperty(AssetBinaryWriter w, string name, Vector3 value) => p.NativeProperty(w, name,
             p.Bytes(b => { b.Write((double)value.X); b.Write((double)value.Y); b.Write((double)value.Z); }),
             ("StructProperty", 1), ("Vector", 1), ("/Script/CoreUObject", 0));
+    }
+
+    private static byte Srgb(float linear)
+    {
+        var value = Math.Clamp(linear, 0, 1);
+        value = value <= .0031308f ? value * 12.92f : 1.055f * MathF.Pow(value, 1 / 2.4f) - .055f;
+        return (byte)Math.Clamp((int)MathF.Round(value * 255), 0, 255);
     }
 
     private static void Matrix(AssetBinaryWriter w, Matrix4x4 m)

@@ -8,6 +8,40 @@ namespace Meddle.Utils.Tests;
 public sealed class TerritorySceneTests
 {
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void LightPayload_ReadsLegacyAndV700WithoutConfusingTheMergeGroup(bool v7)
+    {
+        var bytes = MakeLayerFile();
+        using var writer = new BinaryWriter(new MemoryStream(bytes));
+        void Int(int offset, uint value) { writer.BaseStream.Position = 192 + offset; writer.Write(value); }
+        void Float(int offset, float value) { writer.BaseStream.Position = 192 + offset; writer.Write(value); }
+        Int(0, 3); Int(0x30, 3); Float(0x34, 2); Float(0x38, 4); Int(0x3c, 1);
+        Float(0x40, 10); Float(0x44, 30); Int(0x48, 208); Int(0x4c, 0xff4080ff); Float(0x50, 2);
+        bytes[192 + 0x54] = 1; bytes[192 + 0x58] = 1; bytes[192 + 0x59] = 1;
+        Float(0x5c, .5f); Float(0x60, 12); Float(0x64, 34); Int(0x68, 7);
+        if (v7) { Float(0x68, .75f); Float(0x80, 8); Int(0x88, 23u << 16 | 1u); Int(0x8c, 0x56373030); }
+        writer.BaseStream.Position = 400; writer.Write(Encoding.UTF8.GetBytes("bg/light.tex\0"));
+        var light = new TerritorySceneFile(bytes).Layers.Single().Instances.Single().Light!;
+        Assert.AreEqual(3u, light.Type);
+        Assert.AreEqual("bg/light.tex", light.TexturePath);
+        Assert.AreEqual(new Vector2(12, 34), light.PlaneAngles);
+        Assert.AreEqual(30f, light.ConeAngle);
+        Assert.AreEqual(10f, light.FalloffAngle);
+        Assert.AreEqual(4f, light.LinearColor.X, .0001f);
+        Assert.AreEqual(1u, light.FalloffType);
+        Assert.AreEqual(MathF.Sqrt(51), light.Range, .0001f);
+        Assert.IsTrue(light.SpecularEnabled && light.ObjectShadowEnabled && !light.CharacterShadowEnabled);
+        if (v7)
+        {
+            Assert.AreEqual(.75f, light.Dawntrail!.LightSelect);
+            Assert.AreEqual((ushort)23, light.Dawntrail.MergeGroupId);
+            Assert.AreEqual(8f, light.Dawntrail.Fade);
+        }
+        else { Assert.IsNull(light.Dawntrail); Assert.AreEqual((ushort)7, light.MergeGroupId); }
+    }
+
+    [TestMethod]
     public void Lgb_ResolvesEachOffsetFromItsOwnStructure()
     {
         var file = new TerritorySceneFile(MakeLayerFile());

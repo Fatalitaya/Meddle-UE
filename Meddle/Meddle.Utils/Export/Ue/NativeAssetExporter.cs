@@ -17,12 +17,24 @@ public static class NativeAssetExporter
         List<string>? staticMaterialSlots = null)
     {
         if (fps is not (30 or 60)) throw new ArgumentOutOfRangeException(nameof(fps));
-        if (meshes && !scene.LogicalNodes.Any(n => n.Mesh != null)) throw new InvalidDataException("Instance contains no mesh geometry.");
+        if (meshes && !scene.LogicalNodes.Any(n => n.Mesh != null || n.PunctualLight != null))
+            throw new InvalidDataException("Instance contains no mesh geometry or lights.");
         if (!meshes && scene.LogicalSkins.Count == 0) throw new InvalidDataException("Animation scene contains no skeletons.");
         name = SafeName(name);
         var package = "/Game/Meddle/" + name;
         var folder = Path.Combine(destination, "Content", "Meddle", name);
         Directory.CreateDirectory(folder);
+        if (meshes)
+        {
+            var lights = UeLightExport.Read(scene);
+            if (lights.Length != 0)
+            {
+                token.ThrowIfCancellationRequested();
+                var mapPath = Path.Combine(folder, name + "_Lights.umap");
+                LevelWriter.Write(mapPath, package + "/" + name + "_Lights", [], lights);
+                UeLightExport.WriteMetadata(mapPath, lights);
+            }
+        }
         string FileFor(string category, string asset) => Path.Combine(folder, category, asset + ".uasset");
         string PackageFor(string category, string asset) => package + "/" + category + "/" + asset;
         var materials = new Dictionary<Material, string>();

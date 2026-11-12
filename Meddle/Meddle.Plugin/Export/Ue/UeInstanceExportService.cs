@@ -19,9 +19,9 @@ public sealed class UeInstanceExportService(ComposerFactory composerFactory) : I
     {
         name = NativeAssetExporter.SafeName(name);
         var instances = groups.SelectMany(g => g.Items).ToArray();
-        if (instances.Any(i => i is not ParsedBgPartsInstance))
-            throw new InvalidDataException("Territory 子关卡 要求已展开的静态模型实例。");
-        var parts = instances.Cast<ParsedBgPartsInstance>().ToArray();
+        if (instances.Any(i => i is not (ParsedBgPartsInstance or ParsedLightInstance)))
+            throw new InvalidDataException("Territory 子关卡 要求已展开的模型或灯光实例。");
+        var parts = instances.OfType<ParsedBgPartsInstance>().ToArray();
         var resources = TerritoryGrouping.Build(parts.Select(p => new TerritoryGroupItem<ParsedBgPartsInstance>(p,
             p.Path.FullPath, p.BgChangeMaterial?.MaterialPath ?? "", p.BgChangeMaterial?.BGChangeMaterialIndex ?? -1,
             p.Stain?.RowId ?? 0, "", p.BgStainLinear, p.LayoutColor, p.BgEmissivePower)), TerritoryGroupMode.RepeatedResource);
@@ -65,10 +65,10 @@ public sealed class UeInstanceExportService(ComposerFactory composerFactory) : I
                 foreach (var item in resource.Items) placements.Add(item.Id, (meshPath!, assetName, materials.ToArray()));
                 progress.IncrementProgress();
             }
-            var actors = groups.Select(g =>
+            var actors = groups.Where(g => g.Items.Any(i => i is ParsedBgPartsInstance)).Select(g =>
             {
                 var origin = Coordinates.Position(g.Items[0].Transform.Translation);
-                var components = g.Items.Cast<ParsedBgPartsInstance>().GroupBy(p =>
+                var components = g.Items.OfType<ParsedBgPartsInstance>().GroupBy(p =>
                     (placements[p.Id].Appearance, Mirrored: p.Transform.AffineTransform.Matrix.GetDeterminant() < 0))
                     .Select(bucket =>
                     {
@@ -83,9 +83,17 @@ public sealed class UeInstanceExportService(ComposerFactory composerFactory) : I
                     }).ToArray();
                 return new LevelActor(g.Name, origin, components);
             }).ToArray();
+            var lightScene = new SceneBuilder();
+            foreach (var light in instances.OfType<ParsedLightInstance>())
+            {
+                token.ThrowIfCancellationRequested();
+                composer.ComposeLight(light, lightScene);
+            }
+            var lights = UeLightExport.Read(lightScene.ToGltf2());
             token.ThrowIfCancellationRequested();
-            LevelWriter.Write(Path.Combine(destination, "Content", "Meddle", name, name + ".umap"),
-                "/Game/Meddle/" + name + "/" + name, actors);
+            var mapPath = Path.Combine(destination, "Content", "Meddle", name, name + ".umap");
+            LevelWriter.Write(mapPath, "/Game/Meddle/" + name + "/" + name, actors, lights);
+            if (lights.Length != 0) UeLightExport.WriteMetadata(mapPath, lights);
         }
         finally
         {
@@ -103,7 +111,7 @@ public sealed class UeInstanceExportService(ComposerFactory composerFactory) : I
 
     public static ParsedInstance[] ExportRoots(IEnumerable<ParsedInstance> instances)
     {
-        var selected = instances.DistinctBy(i => i.Id).Where(HasGeometry).ToArray();
+        var selected = instances.DistinctBy(i => i.Id).Where(HasExportContent).ToArray();
         // Flatten includes the group itself. Exclude only descendants of another selection.
         var children = selected.OfType<ParsedSharedInstance>()
             .SelectMany(s => s.Flatten().Where(i => i.Id != s.Id)).Select(i => i.Id).ToHashSet();
@@ -111,11 +119,18 @@ public sealed class UeInstanceExportService(ComposerFactory composerFactory) : I
             !(i is ParsedCharacterInstance { Parent: not null } character && selected.Any(p => p.Id == character.Parent.Id))).ToArray();
     }
 
+    public static bool HasExportContent(ParsedInstance instance) => HasGeometry(instance) || instance switch
+    {
+        ParsedLightInstance => true,
+        ParsedSharedInstance shared => shared.Children.Any(HasExportContent),
+        _ => false
+    };
+
     public void Export(ParsedInstance[] instances, string destination, Configuration.ExportConfiguration settings,
         UeMeshMergeMode mergeMode, CancellationToken token, ProgressWrapper wrapper)
     {
         var roots = ExportRoots(instances);
-        if (roots.Length == 0) throw new InvalidDataException("Selected instances contain no supported mesh geometry.");
+        if (roots.Length == 0) throw new InvalidDataException("Selected instances contain no supported geometry or lights.");
         var progress = new ExportProgress(roots.Length, "UE instances");
         wrapper.Progress = progress;
         var staging = Path.Combine(Path.GetTempPath(), "MeddleNative", Guid.NewGuid().ToString("N"));

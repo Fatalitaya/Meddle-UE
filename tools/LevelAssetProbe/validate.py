@@ -34,5 +34,26 @@ bounds = c.static_mesh.get_bounds()
 near(bounds.origin, unreal.Vector(50, 50, 0))
 near(bounds.box_extent, unreal.Vector(50, 50, 0))
 assert abs(bounds.sphere_radius - (50 * 50 * 2) ** .5) < .01, bounds
+point = next(a for a in actors if a.get_actor_label() == 'Point test')
+spot = next(a for a in actors if a.get_actor_label() == 'Spot test')
+sun = next(a for a in actors if a.get_actor_label() == 'Directional test')
+assert isinstance(point, unreal.PointLight)
+assert isinstance(spot, unreal.SpotLight)
+assert isinstance(sun, unreal.DirectionalLight)
+for a in [point, spot, sun]:
+    assert a.get_component_by_class(unreal.LightComponent).mobility == unreal.ComponentMobility.MOVABLE
+near(point.get_actor_location(), unreal.Vector(100,200,300))
+near(spot.get_actor_forward_vector(), unreal.Vector(0,1,0))
+near(sun.get_actor_forward_vector(), unreal.Vector(0,0,-1))
+pc = point.get_component_by_class(unreal.PointLightComponent)
+sc = spot.get_component_by_class(unreal.SpotLightComponent)
+assert abs(pc.intensity - 20) < .001
+assert abs(pc.attenuation_radius - 1500) < .001
+assert pc.intensity_units == unreal.LightUnits.CANDELAS
+assert pc.get_editor_property('use_inverse_squared_falloff')
+assert abs(sc.inner_cone_angle - 20) < .001 and abs(sc.outer_cone_angle - 40) < .001
+assert not sc.cast_shadows and sc.specular_scale == 0
+color = pc.get_light_color()
+assert abs(color.r - .25) < .005 and abs(color.g - .5) < .005 and color.b == 1
 assert editor.save_current_level()
 unreal.log('MEDDLE_LEVEL_VALIDATION_PASSED')

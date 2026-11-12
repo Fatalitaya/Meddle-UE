@@ -23,12 +23,15 @@ public partial class LayoutService
         Transform Transform, string Path, ParsedStain? Stain, ParsedBgPartsInstance? Model, TerritoryRuntimeNode[] Children)
     {
         public bool IsHousing { get; init; }
+        public Models.Structs.ParsedRenderLight? Light { get; init; }
+        public float? HousingLightMultiplier { get; init; }
     }
     public record TerritoryRuntimeLayer(ushort GroupKey, ushort Key, TerritorySceneFile.Festival Festival, TerritoryRuntimeNode[] Nodes);
     public record TerritorySnapshot(uint TerritoryId, uint FilterKey, uint ContentId,
         HashSet<TerritorySceneFile.Festival> Festivals, TerritoryRuntimeLayer[] Layers)
     {
         public TerritoryRuntimeNode[] AdditionalHousing { get; init; } = [];
+        public Models.Structs.HousingLightState? HousingLighting { get; init; }
     }
 
     // Called on the framework thread. No pointers survive the snapshot and no overlay/range filters apply.
@@ -50,8 +53,11 @@ public partial class LayoutService
             var words = (ushort*)&value;
             if (words[0] != 0) festivals.Add(new(words[0], words[1]));
         }
+        var housingLighting = CaptureHousingLighting(layout);
         if (!includeInstances)
-            return new(territoryId, layout->LayerFilterKey, layout->CfcId, festivals, []);
+            return new(territoryId, layout->LayerFilterKey, layout->CfcId, festivals, [])
+                { HousingLighting = housingLighting };
+        var lightRoots = housingLighting == null ? [] : HousingLightRoots(layout);
 
         var housing = ParseTerritoryFurniture(layout);
         var housingRoots = housing.Plots.Select(p => (nint)p.LayoutInstance)
@@ -76,19 +82,19 @@ public partial class LayoutService
         }
         var additionalHousing = new List<TerritoryRuntimeNode>();
         // Plot roots precede fixtures so children retain their parent's coordinate space.
-        foreach (var address in housingRoots)
+        foreach (var address in housingRoots.Concat(lightRoots).Distinct())
         {
             if (captured.ContainsKey(address)) continue;
             var node = Capture((ILayoutInstance*)address, null);
             if (node != null) additionalHousing.Add(node);
         }
         return new(territoryId, layout->LayerFilterKey, layout->CfcId, festivals, layers.ToArray())
-            { AdditionalHousing = additionalHousing.ToArray() };
+            { AdditionalHousing = additionalHousing.ToArray(), HousingLighting = housingLighting };
 
         TerritoryRuntimeNode? Capture(ILayoutInstance* instance, ParsedStain? inheritedStain)
         {
             token.ThrowIfCancellationRequested();
-            if (instance == null || instance->Id.Type is not (InstanceType.BgPart or InstanceType.SharedGroup)) return null;
+            if (instance == null || instance->Id.Type is not (InstanceType.BgPart or InstanceType.SharedGroup or InstanceType.Light)) return null;
             if (captured.TryGetValue((nint)instance, out var existing)) return existing;
             var transform = instance->GetTransformImpl();
             if (transform == null) return null;
@@ -101,7 +107,7 @@ public partial class LayoutService
                 model = ParseBgPart((BgPartsLayoutInstance*)instance) as ParsedBgPartsInstance;
                 if (model != null) model.Stain = inheritedStain;
             }
-            else
+            else if (instance->Id.Type == InstanceType.SharedGroup)
             {
                 var shared = (SharedGroupLayoutInstance*)instance;
                 if (shared->StainInfo != null)
@@ -120,7 +126,12 @@ public partial class LayoutService
             var result = new TerritoryRuntimeNode((uint)instance->Id.Type, instance->Id.InstanceKey, instance->IndexInPrefab,
                 instance->IsActive || (!instance->IsPrimaryLoaded() && instance->WantToBeActive()),
                 new Transform(*transform), path.HasValue ? path.ToString() : "",
-                stain, model, children.ToArray()) { IsHousing = housingAddresses.Contains((nint)instance) };
+                stain, model, children.ToArray())
+            {
+                IsHousing = housingAddresses.Contains((nint)instance),
+                HousingLightMultiplier = lightRoots.Contains((nint)instance) ? housingLighting?.Multiplier : null,
+                Light = instance->Id.Type == InstanceType.Light ? ParsedLightInstance(instance)?.Light : null
+            };
             captured[(nint)instance] = result;
             return result;
         }

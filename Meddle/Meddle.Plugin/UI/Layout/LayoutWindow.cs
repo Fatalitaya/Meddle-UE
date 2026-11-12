@@ -411,11 +411,11 @@ public partial class LayoutWindow : ITab
             {
                 ImGui.Combo(Loc.Label("ModelMerge"), ref ueMeshMergeMode, Loc.Text("ModelMergeChoices"));
                 ImGui.TextWrapped(Loc.Text("LayoutExportHint"));
-                if (!instances.Any(UeInstanceExportService.HasGeometry))
+                if (!instances.Any(UeInstanceExportService.HasExportContent))
                     ImGui.TextWrapped(Loc.Text("NoExportableModels"));
             }
 
-            using (ImRaii.Disabled(exportUeAssets && !instances.Any(UeInstanceExportService.HasGeometry)))
+            using (ImRaii.Disabled(exportUeAssets && !instances.Any(UeInstanceExportService.HasExportContent)))
             {
                 if (ImGui.Button(Loc.Label("Export")))
                 {

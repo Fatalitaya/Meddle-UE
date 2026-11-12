@@ -16,4 +16,7 @@ MaterialWriter.Write(Path.Combine(folder, "Blue.uasset"), package + "Blue", new(
 LevelWriter.Write(Path.Combine(folder, "Territory.umap"), package + "Territory",
     [new("Test group", new(1000,2000,3000), [new("Instances", package + "LocalMesh",
         [Matrix4x4.CreateTranslation(10,20,30), Matrix4x4.CreateScale(2,3,4)*Matrix4x4.CreateRotationZ(.5f)*Matrix4x4.CreateTranslation(50,60,70)], [package + "Red"]),
-        new("Mirrored", package + "LocalMesh", [Matrix4x4.CreateScale(-1,1,1)*Matrix4x4.CreateTranslation(-10,0,0)], [package + "Blue"])])]);
+        new("Mirrored", package + "LocalMesh", [Matrix4x4.CreateScale(-1,1,1)*Matrix4x4.CreateTranslation(-10,0,0)], [package + "Blue"])])],
+    [new("Point test", LevelLightType.Point, new(100,200,300), Vector3.UnitX, new(.25f,.5f,1), 20, 1500, 0, 0, true, true),
+     new("Spot test", LevelLightType.Spot, new(400,500,600), Vector3.UnitY, Vector3.One, 35, 2500, 20, 40, false, false),
+     new("Directional test", LevelLightType.Directional, Vector3.Zero, -Vector3.UnitZ, Vector3.One, 5, 0, 0, 0, true, true)]);

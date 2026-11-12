@@ -12,6 +12,7 @@ public sealed class TerritorySceneFile
     public record Instance(uint Type, uint Id, string Name, Vector3 Translation, Vector3 Rotation,
         Vector3 Scale, string Path, uint EventObjectId)
     {
+        public SceneLight? Light { get; init; }
         public uint RuntimeType => Type == 45 ? 6u : Type;
         public Matrix4x4 LocalMatrix => Matrix4x4.CreateScale(Scale) * Matrix4x4.CreateRotationX(Rotation.X)
             * Matrix4x4.CreateRotationY(Rotation.Y) * Matrix4x4.CreateRotationZ(Rotation.Z)
@@ -107,11 +108,30 @@ public sealed class TerritorySceneFile
                 var type = U32(item);
                 instances[j] = new Instance(type, U32(item + 4), StringAt(item, 8),
                     Vector(item + 12), Vector(item + 24), Vector(item + 36),
-                    type is 1 or 6 ? StringAt(item, 48) : "", type == 45 ? U32(item + 48) : 0);
+                    type is 1 or 6 ? StringAt(item, 48) : "", type == 45 ? U32(item + 48) : 0)
+                    { Light = type == 3 ? ReadLight(item) : null };
             }
             Layers.Add(new Layer(groupId, U32(layer), StringAt(layer, 4),
                 new Festival(U16(layer + 24), U16(layer + 26)), operation, keys, instances));
         }
+    }
+
+    private SceneLight ReadLight(int item)
+    {
+        // Offsets are relative to the common 0x30-byte instance header, not the payload.
+        var light = new SceneLight(U32(item + 0x30), Float(item + 0x34), Float(item + 0x38),
+            U32(item + 0x3c), Float(item + 0x40), Float(item + 0x44), StringAt(item, 0x48),
+            U32(item + 0x4c), Float(item + 0x50), Slice(item + 0x54, 1)[0] != 0,
+            Slice(item + 0x58, 1)[0] != 0, Slice(item + 0x59, 1)[0] != 0,
+            Slice(item + 0x5a, 1)[0] != 0, Float(item + 0x5c), new(Float(item + 0x60), Float(item + 0x64)));
+        // V700. In this version the old merge-group field at 0x68 became LightSelect.
+        if (item <= data.Length - 0x90 && U32(item + 0x8c) == 0x56373030)
+            light = light with { Dawntrail = new(Float(item + 0x68), Float(item + 0x6c), Float(item + 0x70),
+                Float(item + 0x74), Float(item + 0x78), Float(item + 0x7c), Float(item + 0x80),
+                Float(item + 0x84), Slice(item + 0x88, 1)[0] != 0, U16(item + 0x8a),
+                Slice(item + 0x55, 1)[0], Slice(item + 0x56, 1)[0], Slice(item + 0x5b, 1)[0]) };
+        else light = light with { MergeGroupId = U16(item + 0x68) };
+        return light;
     }
 
     private int Relative(int start, int field) => checked(start + I32(start + field));

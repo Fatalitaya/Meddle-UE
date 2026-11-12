@@ -1,5 +1,6 @@
 ﻿using System.Numerics;
 using System.Runtime.InteropServices;
+using Meddle.Formats.Files;
 using FFXIVClientStructs.FFXIV.Client.Graphics.Scene;
 using FFXIVClientStructs.FFXIV.Client.LayoutEngine;
 using FFXIVClientStructs.FFXIV.Client.LayoutEngine.Layer;
@@ -46,7 +47,8 @@ public enum LightFlags : uint {
     Reflection = 0x01,
     Dynamic = 0x02,
     CharaShadow = 0x04,
-    ObjectShadow = 0x08
+    ObjectShadow = 0x08,
+    TimeAdjusted = 0x10
 }
 
 public enum LightType : uint {
@@ -54,7 +56,8 @@ public enum LightType : uint {
     PointLight = 2,
     SpotLight = 3,
     AreaLight = 4,
-    CapsuleLight = 5
+    CapsuleLight = 5,
+    Specular = 6
 }
 
 public enum FalloffType : uint {
@@ -82,7 +85,11 @@ public struct RenderLight {
     [FieldOffset(0x90)] public float CharaShadowRange;
 }
 
+public sealed record HousingLightState(byte Level, float Multiplier);
+
 public class ParsedRenderLight {
+    public SceneLight? Source { get; private set; }
+    public HousingLightState? HousingLighting { get; init; }
     public LightFlags Flags;
     public LightType LightType;
     public Transform Transform;
@@ -99,6 +106,28 @@ public class ParsedRenderLight {
     public float CharaShadowRange;
 
     public ParsedRenderLight() { }
+
+    public ParsedRenderLight WithSource(SceneLight source)
+    {
+        var copy = (ParsedRenderLight)MemberwiseClone();
+        copy.Source = source;
+        return copy;
+    }
+
+    public static ParsedRenderLight FromFile(SceneLight source, float multiplier = 1,
+        HousingLightState? housingLighting = null) => new()
+    {
+        Source = source, LightType = (LightType)source.Type,
+        HousingLighting = housingLighting,
+        Color = new ColorHdr { _vec3 = source.LinearColor, Intensity = multiplier },
+        Range = source.RangeWithMultiplier(multiplier), FalloffType = (FalloffType)source.FalloffType, Falloff = source.FalloffFactor,
+        LightAngle = source.ConeAngle, FalloffAngle = source.FalloffAngle, AreaAngle = source.PlaneAngles,
+        ShadowNear = MathF.Max(source.ShadowNear, .1f), ShadowFar = MathF.Max(source.Range, .1f),
+        Flags = (source.SpecularEnabled ? LightFlags.Reflection : 0)
+            | (source.ObjectShadowEnabled ? LightFlags.ObjectShadow : 0)
+            | (source.CharacterShadowEnabled ? LightFlags.CharaShadow : 0)
+            | (source.FollowsDirectionalLight ? LightFlags.TimeAdjusted : 0)
+    };
     
     public unsafe ParsedRenderLight(RenderLight* light) {
         Flags = light->Flags;

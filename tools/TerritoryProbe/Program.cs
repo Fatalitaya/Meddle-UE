@@ -35,6 +35,8 @@ var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 var errors = 0;
 var missing = 0;
 var layers = 0;
+var lights = new Dictionary<uint, int>();
+var v7Lights = 0;
 var festivals = new HashSet<TerritorySceneFile.Festival>();
 void Visit(string path)
 {
@@ -52,6 +54,13 @@ void Visit(string path)
         layers += scene.Layers.Count;
         foreach (var layer in scene.Layers)
         {
+            foreach (var light in layer.Instances.Select(i => i.Light).OfType<SceneLight>())
+            {
+                lights[light.Type] = lights.GetValueOrDefault(light.Type) + 1;
+                if (light.Dawntrail != null) v7Lights++;
+                if (!float.IsFinite(light.Range) || !float.IsFinite(light.HdrIntensity))
+                    throw new InvalidDataException("Invalid light range or intensity.");
+            }
             if (layer.Festival.Id != 0) festivals.Add(layer.Festival);
             foreach (var item in layer.Instances.Where(i => i.Type == 6 && i.Path.Length != 0)) Visit(item.Path);
         }
@@ -63,4 +72,5 @@ void Visit(string path)
 }
 foreach (var path in paths.Distinct()) Visit(path);
 Console.WriteLine($"Scenes={seen.Count}, layers={layers}, festival phases={festivals.Count}, missing={missing}, parse errors={errors}");
+Console.WriteLine($"Lights={string.Join(", ", lights.OrderBy(p => p.Key).Select(p => $"type {p.Key}: {p.Value}"))}; V700={v7Lights}");
 if (seen.Count == 0 || errors != 0 || missing != 0) Environment.ExitCode = 1;

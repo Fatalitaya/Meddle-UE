@@ -310,7 +310,11 @@ public partial class LayoutService : IService, IDisposable
         if (typedInstance->LightPtr == null || typedInstance->LightPtr->LightItem == null)
             return null;
 
-        return new ParsedLightInstance((nint)light, new Transform(*light->GetTransformImpl()), typedInstance->LightPtr->LightItem);
+        // The client already applies housing brightness to RenderLight.Color.Intensity.
+        // Capture the setting as provenance only; multiplying again would darken it twice.
+        return new ParsedLightInstance((nint)light, new Transform(*light->GetTransformImpl()),
+            new ParsedRenderLight(typedInstance->LightPtr->LightItem)
+            { HousingLighting = CaptureHousingLighting(typedInstance->LayoutManager) });
     }
 
     private unsafe ParsedEnvLightInstance? ParseEnvLight(Vector3 position)
