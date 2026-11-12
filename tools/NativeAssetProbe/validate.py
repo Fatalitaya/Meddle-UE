@@ -42,16 +42,15 @@ for mode,expected_count in [('All',1),('ByPart',1),('None',3)]:
     assert len(assets)==expected_count, (mode,assets)
     positions=[]
     for path in assets:
-        part=load(path,unreal.SkeletalMesh)
-        assert part.get_editor_property('skeleton')
-        dynamic,outcome=unreal.GeometryScript_AssetUtils.copy_mesh_from_skeletal_mesh(
+        part=load(path,unreal.StaticMesh)
+        assert part.get_name().startswith('SM_')
+        dynamic,outcome=unreal.GeometryScript_AssetUtils.copy_mesh_from_static_mesh(
             part,unreal.DynamicMesh(),unreal.GeometryScriptCopyMeshFromAssetOptions(),unreal.GeometryScriptMeshReadLOD())
         assert outcome==unreal.GeometryScriptOutcomePins.SUCCESS
-        for vertex in range(editor.get_num_verts(part,0)):
-            position,valid=queries.get_vertex_position(dynamic,vertex)
-            assert valid
-            positions.append(round(position.y,2))
         for triangle in range(queries.get_num_triangle_i_ds(dynamic)):
+            valid,pa,pb,pc=queries.get_triangle_positions(dynamic,triangle)
+            assert valid
+            positions.extend(round(p.y,2) for p in [pa,pb,pc])
             face,valid=queries.get_triangle_face_normal(dynamic,triangle)
             _,a,b,c,normals_valid=queries.get_triangle_normals(dynamic,triangle)
             assert valid and normals_valid and face.dot(a+b+c)>2.99, path
@@ -80,11 +79,16 @@ for mode,expected in [('All',{'SK_角色All':12}),
         assert unreal.EditorAssetLibrary.save_loaded_asset(part,False)
     assert sorted(all_positions)==[0,0,100,200,200,300,400,400,500,600,600,700], (mode,all_positions)
 mixed=load('/Game/Meddle/MixedInstances/Meshes/SK_MixedInstances',unreal.SkeletalMesh)
-assert editor.get_num_verts(mixed,0)==15
+assert editor.get_num_verts(mixed,0)==12
 dynamic,outcome=unreal.GeometryScript_AssetUtils.copy_mesh_from_skeletal_mesh(
     mixed,unreal.DynamicMesh(),unreal.GeometryScriptCopyMeshFromAssetOptions(),unreal.GeometryScriptMeshReadLOD())
 assert outcome==unreal.GeometryScriptOutcomePins.SUCCESS
-positions=[round(queries.get_vertex_position(dynamic,i)[0].y,2) for i in range(15)]
+positions=[round(queries.get_vertex_position(dynamic,i)[0].y,2) for i in range(12)]
+mixed_static=load('/Game/Meddle/MixedInstances/Meshes/SM_MixedInstances',unreal.StaticMesh)
+dynamic,outcome=unreal.GeometryScript_AssetUtils.copy_mesh_from_static_mesh(
+    mixed_static,unreal.DynamicMesh(),unreal.GeometryScriptCopyMeshFromAssetOptions(),unreal.GeometryScriptMeshReadLOD())
+assert outcome==unreal.GeometryScriptOutcomePins.SUCCESS
+positions.extend(round(queries.get_vertex_position(dynamic,i)[0].y,2) for i in range(3))
 assert sorted(positions)==[0,0,100,200,200,300,400,400,500,600,600,700,800,800,900], positions
 for oriented_mesh in [mesh, adapter_mesh, mirrored_mesh]:
     dynamic, outcome = unreal.GeometryScript_AssetUtils.copy_mesh_from_skeletal_mesh(

@@ -27,7 +27,7 @@ using Transform = Meddle.Plugin.Models.Transform;
 
 namespace Meddle.Plugin.Services;
 
-public class LayoutService : IService, IDisposable
+public partial class LayoutService : IService, IDisposable
 {
     private readonly ILogger<LayoutService> logger;
     private readonly IFramework framework;
@@ -431,9 +431,14 @@ public class LayoutService : IService, IDisposable
         }
 
         var modelPtr = (nint)graphics->ModelResourceHandle;
+        var layoutColor = new System.Numerics.Vector4(1, 1, 1, 1);
+        bgPart->GetColor(&layoutColor);
         return new ParsedBgPartsInstance((nint)bgPartPtr.Value, bgPart->GraphicsObject->IsVisible, new Transform(*bgPart->GetTransformImpl()), path, bgChangeMaterial)
         {
-            ModelPtr = modelPtr
+            ModelPtr = modelPtr,
+            BgStainLinear = graphics->BGChangeData == null ? null : graphics->BGChangeData->LinearStainColor,
+            BgEmissivePower = graphics->EmissivePower / 255f,
+            LayoutColor = new System.Numerics.Vector4(layoutColor.X, layoutColor.Y, layoutColor.Z, layoutColor.W)
         };
     }
 

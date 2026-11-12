@@ -53,14 +53,53 @@ public sealed class UeMeshGroupingTests
                 NativeAssetExporter.Export(model,output,"家具",mergeMode:mode);
                 var files = Directory.GetFiles(Path.Combine(output,"Content/Meddle/家具/Meshes"),"*.uasset");
                 Assert.AreEqual(mode==UeMeshMergeMode.None ? 3 : 1,files.Length);
+                Assert.AreEqual(0, Directory.GetFiles(output, "*Skeleton*.uasset", SearchOption.AllDirectories).Length);
                 foreach (var file in files)
                 {
                     var asset = new UAsset(file,EngineVersion.VER_UE5_8);
+                    Assert.IsTrue(Path.GetFileName(file).StartsWith("SM_"));
+                    Assert.IsTrue(asset.Imports.Any(i => i.ObjectName.ToString() == "StaticMesh"));
+                    Assert.IsFalse(asset.Imports.Any(i => i.ObjectName.ToString() is "Skeleton" or "SkeletalMesh"));
                     Assert.AreEqual(Path.GetFileNameWithoutExtension(file),asset.Exports[0].ObjectName.ToString());
                 }
             }
         }
         finally { if(Directory.Exists(dir))Directory.Delete(dir,true); }
+    }
+
+    [TestMethod]
+    public void MixedSceneKeepsStaticAndSkinnedAssetsSeparateInEveryMergeMode()
+    {
+        var scene = new SceneBuilder();
+        var mesh = new MeshBuilder<VertexPositionNormal,VertexTexture1,VertexJoints4>("SharedName");
+        mesh.UsePrimitive(new MaterialBuilder("Material")).AddTriangle(
+            (new VertexPositionNormal(Vector3.Zero,Vector3.UnitZ),new VertexTexture1(Vector2.Zero),new VertexJoints4(0)),
+            (new VertexPositionNormal(Vector3.UnitX,Vector3.UnitZ),new VertexTexture1(Vector2.UnitX),new VertexJoints4(0)),
+            (new VertexPositionNormal(Vector3.UnitY,Vector3.UnitZ),new VertexTexture1(Vector2.UnitY),new VertexJoints4(0)));
+        var root = new NodeBuilder("root");
+        scene.AddSkinnedMesh(mesh, Matrix4x4.Identity, root);
+        var model = scene.ToGltf2();
+        // Same source mesh and part name, but only the character occurrence has a skin.
+        var rigid = model.DefaultScene.CreateNode("Scenery");
+        rigid.Mesh = model.LogicalMeshes[0];
+        rigid.LocalMatrix = Matrix4x4.CreateTranslation(10, 0, 0);
+        var dir = Path.Combine(Path.GetTempPath(), "MeddleMixed_" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            foreach (var mode in Enum.GetValues<UeMeshMergeMode>())
+            {
+                var groups = UeMeshGrouping.Build(model, mode);
+                Assert.AreEqual(2, groups.Length);
+                Assert.IsTrue(groups.All(g => g.Nodes.All(n => n.Skin != null) || g.Nodes.All(n => n.Skin == null)));
+                var output = Path.Combine(dir, mode.ToString());
+                NativeAssetExporter.Export(model, output, "Mixed", mergeMode: mode);
+                var meshes = Directory.GetFiles(Path.Combine(output, "Content/Meddle/Mixed/Meshes"), "*.uasset");
+                Assert.AreEqual(2, meshes.Length);
+                Assert.AreEqual(1, meshes.Count(f => Path.GetFileName(f).StartsWith("SM_")));
+                Assert.AreEqual(1, meshes.Count(f => Path.GetFileName(f).StartsWith("SK_")));
+            }
+        }
+        finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
     }
 
     [TestMethod]

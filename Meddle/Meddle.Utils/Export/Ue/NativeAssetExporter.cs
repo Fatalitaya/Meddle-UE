@@ -64,7 +64,7 @@ public static class NativeAssetExporter
                         ?? throw new InvalidDataException($"Cannot decode {source}");
                     var texName = $"T_{material.LogicalIndex}_{SafeName(usage)}";
                     var texturePath = PackageFor("Textures", texName);
-                    var srgb = CharacterMaterial.IsColor(usage) && shader != CharacterShader.Legacy;
+                    var srgb = CharacterMaterial.IsColor(usage) && shader is not (CharacterShader.Legacy or CharacterShader.Skin or CharacterShader.Background);
                     var nearest = usage is "g_SamplerIndex" or "chara_tile_norm_array" or "chara_tile_orb_array";
                     var clamp = usage == "Decal" || (usage == "g_SamplerDiffuse" && shader == CharacterShader.Skin && metadata["GetMaterialValue"]?.GetValue<string>() == "GetMaterialValueFace");
                     TextureWriter.Write(FileFor("Textures", texName), texturePath, bitmap.Width, bitmap.Height, bitmap.Bytes, srgb,
@@ -87,7 +87,8 @@ public static class NativeAssetExporter
             var reportPath = Path.ChangeExtension(FileFor("Materials", matName), ".formula.json");
             System.IO.File.WriteAllText(reportPath, System.Text.Json.JsonSerializer.Serialize(new
             {
-                Reference = shader is CharacterShader.Legacy or CharacterShader.Tattoo or CharacterShader.Occlusion ? ShpkMaterial.Reference : shader == CharacterShader.Hair ? CharacterMaterial.HairReference : CharacterMaterial.ReferenceCommit,
+                Reference = shader == CharacterShader.Background ? BackgroundMaterial.Reference : shader is CharacterShader.Legacy or CharacterShader.Tattoo or CharacterShader.Occlusion ? ShpkMaterial.Reference : shader == CharacterShader.Skin ? SkinMaterial.Reference : shader == CharacterShader.Hair ? CharacterMaterial.HairReference : CharacterMaterial.ReferenceCommit,
+                Metadata = shader is CharacterShader.Skin or CharacterShader.Background ? metadata : null,
                 Shader = metadata["ShaderPackage"]?.GetValue<string>(),
                 FormulaEnabled = formula.Graph != null,
                 formula.Gap,
@@ -150,7 +151,8 @@ public static class NativeAssetExporter
                 }
                 bones.Add(new(boneName, parent == null ? 0 : Array.IndexOf(ordered, parent) + 1, Coordinates.Transform(local)));
             }
-            var (skeletonPath, guid) = SkeletonIdentity.Write(destination, bones, name);
+            var skinned = nodes.Any(n => n.Skin != null);
+            var (skeletonPath, guid) = skinned ? SkeletonIdentity.Write(destination, bones, name) : ("", Guid.Empty);
             if (meshes)
             {
                 var sections = new List<AssetSection>();
@@ -188,7 +190,7 @@ public static class NativeAssetExporter
                         var tangentDirection = Vector3.Normalize(Coordinates.Direction(Vector3.TransformNormal(new(tangentValue.X, tangentValue.Y, tangentValue.Z), meshTransform)));
                         var color = colors?[v] ?? Vector4.One;
                         var vertexShader = CharacterMaterial.Classify(primitive.Material?.Extras?["ShaderPackage"]?.GetValue<string>() ?? "");
-                        if (vertexShader is CharacterShader.Legacy or CharacterShader.Tattoo or CharacterShader.Occlusion)
+                        if (vertexShader is CharacterShader.Legacy or CharacterShader.Tattoo or CharacterShader.Occlusion or CharacterShader.Skin)
                             color = ShpkMaterial.VertexColor(color);
                         byte C(float value) => (byte)Math.Clamp((int)MathF.Round(value * 255), 0, 255);
                         uint packed = (uint)(C(color.Z) | C(color.Y) << 8 | C(color.X) << 16 | C(color.W) << 24);
@@ -216,10 +218,14 @@ public static class NativeAssetExporter
                     sections.Add(new(primitive.Material?.Name ?? "Material", primitive.Material == null ? null : materials[primitive.Material], vertices, indices));
                     vertexOffset += (uint)vertices.Length;
                 }
-                var meshName = "SK_" + (mergeMode == UeMeshMergeMode.All ? name : group.Name);
-                SkeletalMeshWriter.Write(FileFor("Meshes", meshName), PackageFor("Meshes", meshName), skeletonPath, new(bones.ToArray(), sections.ToArray(),
-                    morphs.Select(m => new AssetMorph(m.Key, m.Value.Deltas.ToArray(), m.Value.Sections.ToArray())).ToArray()));
+                var meshName = (skinned ? "SK_" : "SM_") + (mergeMode == UeMeshMergeMode.All ? name : group.Name);
+                if (skinned)
+                    SkeletalMeshWriter.Write(FileFor("Meshes", meshName), PackageFor("Meshes", meshName), skeletonPath, new(bones.ToArray(), sections.ToArray(),
+                        morphs.Select(m => new AssetMorph(m.Key, m.Value.Deltas.ToArray(), m.Value.Sections.ToArray())).ToArray()));
+                else
+                    StaticMeshWriter.Write(FileFor("Meshes", meshName), PackageFor("Meshes", meshName), sections.ToArray());
             }
+            if (!skinned) continue;
             foreach (var animation in scene.LogicalAnimations)
             {
                 var count = Math.Max(1, (int)Math.Ceiling(animation.Duration * fps));

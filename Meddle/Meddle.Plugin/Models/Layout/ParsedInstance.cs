@@ -304,6 +304,9 @@ public class ParsedBgPartsInstance : ParsedInstance, IPathInstance, IStainableIn
 
     public ParsedStain? Stain { get; set; }
     public nint? ModelPtr { get; set; }
+    public Vector4? BgStainLinear { get; set; }
+    public Vector4? LayoutColor { get; set; }
+    public float? BgEmissivePower { get; set; }
 
     public bool Search(string query)
     {

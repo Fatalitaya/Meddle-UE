@@ -7,7 +7,7 @@
 - **Live Character → Export UE Assets**：弹出与 Export All 同样风格的设置菜单，选择“模型组合”，再点击 Export。导出 Skeleton、SkeletalMesh（包含形态目标）、Texture2D 和带属性计算图的标准 Material。
 - 角色页的 UE 入口适用于可解析的 CharacterBase，包括人形 NPC、怪物、坐骑、宠物及单独的武器/附件，不再仅显示在人形模型分支。
 - **Layout → 单个/选中/筛选实例的 Export → Export UE Assets**：支持角色、背景物件、家具/共享组和地形板块。每个所选顶层实例独立输出，父组与子实例同时选中时去重；保留场景位置，使用同样的“全部合并 / 按部位合并 / 不合并”选项。只有全部合并使用实例名，其他模式使用部位或源模型名；重名添加数字后缀。
-- 无骨架物件当前以单根 `Meddle_Root` 的 SkeletalMesh 表示，尚未输出 StaticMesh。灯光、相机、投影贴花不在 UE 模型导出范围；背景等尚未移植的 SHPK 使用基础材质并在 `.formula.json` 中说明 Gap，不能视为完整游戏着色器还原。
+- 无蒙皮物件（包括 Territory 地形、建筑和普通场景物件）输出 `SM_` StaticMesh，不生成骨架。带蒙皮的角色等实例输出 `SK_` SkeletalMesh。混合组按是否带蒙皮分别合并，不把静态场景绑定到虚拟根骨骼。灯光、相机、投影贴花不在 UE 模型导出范围；未支持的 SHPK 使用基础材质并在 `.formula.json` 中说明 Gap。
 - **Animation → Start Capture / Stop Capture → Export → UE 5.8.3 assets**：捕获游戏最终骨骼姿态，在插件内重采样为 30 或 60 fps AnimSequence。采集使用单调时钟；游戏帧率决定实际观测频率，插值不会补出未观测的物理运动。
 - **Animation → Bake PAP to UE assets**：输入本地 PAP 和匹配 SKLB 的完整文件路径，选择 30/60 fps、原地或根运动，烘焙全部命名片段。此处“离线”指不播放片段；仍须在运行中的 FFXIV/Dalamud 内使用游戏 Havok 解码器。
 - 将输出目录中的 `Content/Meddle` 整体复制到 UE 项目的 `Content/Meddle`，然后打开编辑器。保留相对路径；如需移动资产，在 UE 内容浏览器中移动以维护引用。
@@ -17,13 +17,14 @@
 ```text
 Content/Meddle/<CharacterOrClipGroup>/
   Meshes/SK_<Name>.uasset
+  Meshes/SM_<Name>.uasset
   Skeletons/SKEL_<sha256>.uasset
   Materials/M_<index>_<material>.uasset
   Textures/T_<index>_<sampler>.uasset
   Animations/A_<Character>_<clip>_<indices>.uasset
 ```
 
-模型组合与命名规则：
+模型组合与命名规则（下表为蒙皮模型；静态模型使用相同粒度，前缀为 `SM_`）：
 
 | 选项 | 输出粒度 | 模型资产名称 |
 | --- | --- | --- |
@@ -46,7 +47,7 @@ XIV 的角色实例不要求存在一个可直接导出的共享骨架。角色�
 - 坐标：输入米制 Y-up 转为 UE 厘米 Z-up，`(x,y,z) → (-z,x,y)*100`；同步转换骨骼、网格、法线、切线和三角形绕序。
 - 骨骼：父节点先于子节点，增加 `Meddle_Root`，按深度和名称排序；保留非均匀缩放。捕获期间骨架拓扑改变会中止导出，需重新录制。
 - 动画：标准 AnimSequence + AnimDataModel，保存可编辑逐骨骼 TRS 轨道。根运动放在 `Meddle_Root`；PAP 的提取运动使用 Havok reference frame，未提取时从根骨轨道生成。缺失骨骼轨道使用参考姿态。
-- 网格：标准 SkeletalMesh imported LOD0，最多 4 组 UV、12 个蒙皮影响，保留顶点颜色和 MorphTarget。UE 首次加载时构建自身派生渲染数据。
+- 网格：蒙皮模型使用标准 SkeletalMesh imported LOD0，最多 4 组 UV、12 个蒙皮影响，保留顶点颜色和 MorphTarget。静态模型使用标准 StaticMesh RawMesh 源数据，保留材质槽、法线、切线、顶点颜色和最多 4 组 UV；UE 首次加载时转换为 MeshDescription 并构建派生渲染数据，保存后使用当前源数据格式。
 - 纹理：可编辑 BGRA8 / RGBA32F source，使用 UE 支持的非虚拟化内联 bulk 编码。颜色贴图 sRGB，打包法线、Mask、Index 等线性；Index/Tile 最近邻。UE 加载/保存时升级为当前源数据格式。
 - 材质：按固定 MeddleTools 节点图移植装备、皮肤、头发、虹膜的属性算术。颜色因子在图内计算，法线保留 B/A 遮罩，头发双 UV、虹膜顶点色左右眼选择、现代色表及 Tile/Decal 运算见 [UE_MATERIAL_FORMULAS.md](UE_MATERIAL_FORMULAS.md)。32 行色表的 characterlegacy、tattoo、occlusion 已依据本机 SHPK 增加属性适配，见 [逆向记录](UE_SHPK_REVERSE.md)。现代装备的 MultiMaterial 不要求 Diffuse，Compatibility 仍要求。缺必要资源和未核实变体保留基础导出；材质旁 `.formula.json` 的 Gap 记录缺口、Adaptation 记录引擎适配限制。Blender/UE 的 BRDF、SSS、IOR 与透明混合并不等价，不宣称游戏画面一致。
 - PAP 输出骨骼变换轨道；不转换游戏事件、音效、特效及浮点槽为 UE 通知或曲线。

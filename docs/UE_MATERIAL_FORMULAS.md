@@ -1,5 +1,7 @@
 # UE 材质属性公式
 
+2026-11-12：皮肤已替换为 [Skin SHPK / MTRL 公式](UE_SKIN_REVERSE.md)。下文皮肤 Blender 映射属于历史参考，不再用于生产导出或皮肤数值验证。
+
 2026-11-12 补充：[Dalamud-VFXEditor 资产解析对照](UE_SHPK_REVERSE.md#dalamud-vfxeditor-资产解析对照补充)记录色表尺寸、Sampler 寻址与有符号 LOD、SHPK 多阶段与 alias cluster 的解析公式和修正。不采用其预览着色器；本页现有表面属性公式保持原验证来源。
 
 参考固定为 [MeddleTools 56aa1252ba341fbc732df6e79b95e388d2057ba0](https://github.com/PassiveModding/MeddleTools/tree/56aa1252ba341fbc732df6e79b95e388d2057ba0)。节点来自该版本的 [shaders.blend](https://github.com/PassiveModding/MeddleTools/blob/56aa1252ba341fbc732df6e79b95e388d2057ba0/MeddleTools/shaders.blend)，输入映射和纹理配置来自 [node_configs.py](https://github.com/PassiveModding/MeddleTools/blob/56aa1252ba341fbc732df6e79b95e388d2057ba0/MeddleTools/node_setup/node_configs.py)，色表奇偶拆分来自 [node_mappings.py](https://github.com/PassiveModding/MeddleTools/blob/56aa1252ba341fbc732df6e79b95e388d2057ba0/MeddleTools/node_setup/node_mappings.py)。不以游戏原始 shader 或视觉相似度作为已验证的依据。
@@ -96,3 +98,46 @@ dotnet build Meddle.sln -c Release
 - **未覆盖**：真实角色在游戏内的完整导出；真实网格上 Blender/UE 的切线基数值对照；非 Rec.709 工作空间；复杂纹理的各向异性/mip/压缩过滤差异；legacy 数据接入及 shader 别名；BRDF、SSS、IOR、视觉一致性。数值测试通过不表示这些项目通过。
 
 数值结果：`MeddleFormulaValidation-846c56fa571b4ec8b5e0f680265e5dbb/formula_results.json`（系统临时目录）；资产日志：`MeddleValidation-72818f049fd541cda3fc32bf575482a5/validation.log`。仓库 `artifacts/ue-material-*.log` 保留本次托管与 Blender 检查日志。
+
+## 背景颜色与实例自发光逆向
+
+背景材质使用独立的 `BackgroundMaterial`，不沿用上文角色的 sRGB、tint 或法线公式。覆盖 `bg.shpk`、`terrain.shpk`、`bgskin.shpk` 的默认采样分支、`bgprop.shpk` 与 `bgcolorchange.shpk` 的干燥延迟表面属性。
+
+### 颜色公式
+
+令 C0/C1 为关闭硬件 sRGB 解码的颜色采样，D0/D1 为 g_DiffuseColor/g_MultiDiffuseColor，V 为原始 COLOR_0。
+
+- 单层 Q=C0.rgb×D0。
+- GetMultiValues：w=saturate(V.a)，Q=lerp(C0.rgb×D0,C1.rgb×D1,w)。
+- GetAlphaMultiValues：a=V.a−0.5，w=saturate(lerp(N0.a,N1.a,AlphaMulti.y)+saturate(abs(2a)−AlphaMulti.x)×AlphaMulti.w×sign(a))。
+- ApplyVertexColorOn：Q=max(Q+V.rgb−0.5,0)；Off 不使用顶点 RGB。游戏写入 GBuffer 后平方解码，UE BaseColor=Q²。
+- bgcolorchange：BaseColor=C0.rgb²×lerp(1,StainLinear,C0.a)。不乘 g_DiffuseColor。优先使用运行时染色缓冲区的线性值；只有染料表数据时，StainLinear=StainColor.rgb²。
+- 普通贴图 UV：UV×NormalUVScale，再分别乘 ColorUVScale/SpecularUVScale。第二层使用 UV1 和参数 zw。bgcolorchange 直接使用 UV0。
+- 灰度高光：UE Specular=0.5×SpecularMap.r×saturate(SpecularColor.r)，Roughness=SpecularMap.g。彩色高光无法由 Default Lit 的标量 Specular 完整表达，报告明确记录红通道近似。
+- 单层法线先计算 xy=N.rg−0.5，再 normalize(float3(xy×NormalScale,sqrt(max(0.25−dot(xy,xy),1e−6))))。已有 FFXIVBinormal 基转换继续适用。
+
+已检查导出的这七类背景 SHPK 顶点签名，没有发现 COLOR_1 输入；本次验证公式使用 COLOR_0。UE 仍将其存成 RGBA8，不宣称保留任意浮点顶点色精度。
+
+### 运行时数据来源
+
+本地客户端 SHA256：`52042B60631CF2C48851B3AAEE36E9EC4FEDD6D7F2C68F0E9A8C3BEFB0AF9F98`。以下 VA 仅为该版本的证据，不用于插件硬编码调用：
+
+1. BgPartsLayoutInstance vtable slot 45 跳至 `0x14073F5E0`。GetColor 返回 RGB=BgObject[0xD0..D2]×BgObject[0xCE]/255，A=BgObject[0xD3]/255。
+2. `0x140453B43` 把 BgObject[0xCD] 放入绘制描述符 0x18；0xCE 放入 0x19；0xD0 的 RGBA 放入 0x14。
+3. `0x140287B41` 起将描述符复制到渲染项的 0x52/0x53/0x48。
+4. `0x14028B1D2` 起归一化 0x52，写入 m_EmissivePower；`0x14028B207` 起对颜色字节乘强度、除 255、平方，写入 m_EmissiveColor，Alpha/255 写入 m_EmissiveBlend。
+5. slot 58 的 `0x14073F330` 验证染色缓冲区 0x04 的 RGB 为字节颜色归一化后的平方，与 [FFXIVClientStructs BgObjectStainBuffer](https://github.com/aers/FFXIVClientStructs/blob/main/FFXIVClientStructs/FFXIV/Client/Graphics/Scene/BgObject.cs) 一致。
+
+因此独立实例颜色是自发光调制，不是通用漫反射 tint。仅当 sum(g_EmissiveColor)>0 时，主层 E=lerp(g_EmissiveColor,LayoutColor.rgb²,LayoutColor.a)，否则 E=0。单层 Emissive=C0.rgb²×E×SpecularMap.a×BgEmissivePower；染色材质以染色后的 BaseColor 代替 C0.rgb²。双层先分别计算 C0²×E 与 C1²×g_MultiEmissiveColor，再按 w 混合，最后乘实例强度。
+
+捕获在框架线程完成，快照保存数值；材料 extras 保存 BgStainLinear、LayoutColor、BgEmissivePower。材质缓存和重复资源分组都包含这些字段，防止同模型不同颜色串用。
+
+### 验证与范围
+
+工具 `tools/ShpkProbe/make_background_cases.py` 直接执行提取的 SM5 指令，独立于生产 HLSL；再用 `tools/NativeAssetProbe` 写入正式 UE 图并 GPU 读回。主参考：bg PS3–10、PS1927；terrain/bgskin PS3–8；bgprop PS3；bgcolorchange PS3。对照记录存于 `artifacts/ue-background-numerics.json`。
+
+bg SHPK SHA256：`9617282FF8A947CEECD11846A73FC1D5EC7782CF19FE22EC363CC6D3195375BE`；bgcolorchange：`8B48A2487CFC29AA42D2AD38E7579520B9CEFAB66D6EFE95D8937961E9EAF667`。
+
+未验证的程序化 detail/noise、bguvscroll、bgcrestchange、透明前向分支明确返回 Gap。双层法线目前共用导出的切线基，独立旋转第二层切线仍有近似；游戏光照、湿润和动画未复现。glTF/GLB 继续保存原始颜色和上述参数，标准查看器不会自动执行这些 SHPK 公式。本次数值测试不是游戏内完整地图截图验收，也未运行游戏内快照采集。
+
+验证结果：UE 5.8.3 / D3D12 / SM6，116 组输入、601 项 GPU 属性读回，0 不一致；包含完整 Default Lit 材质编译、染色 Alpha 0/0.35/1、实例自发光混合和强度、零/负自发光门控、染料表回退与 FFXIVBinormal 转换。202 项单元测试通过，插件 Release 构建 0 警告、0 错误。扩充 SM5 谓词解释后，既有 68 组皮肤 oracle 的 263 项预期数值保持完全相同。

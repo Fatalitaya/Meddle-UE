@@ -5,11 +5,11 @@
 
 This project is a Dalamud plugin which provides a GUI for exporting player models from FFXIV.
 
-This fork also writes editable UE 5.8.3 Skeleton, SkeletalMesh, AnimSequence,
+This fork also writes editable UE 5.8.3 StaticMesh, Skeleton, SkeletalMesh, AnimSequence,
 Texture2D and Material assets directly from Meddle. Character exports include NPCs,
 monsters and attachments; Layout exports include furniture, background models,
 shared groups and terrain plates, with three mesh grouping options. Rigid geometry
-currently uses a single-bone SkeletalMesh. It also supports captured final-pose
+uses StaticMesh; skinned instances use SkeletalMesh. It also supports captured final-pose
 animation and PAP/SKLB clip baking. See [UE export and validation](docs/UE_EXPORT_SCHEMA.md)
 for usage, supported material features and verification status. Initialize the
 `third_party/UAssetAPI` submodule before building.
@@ -51,6 +51,27 @@ Repo URL
 ```
 https://raw.githubusercontent.com/PassiveModding/Meddle/main/repo.json
 ```
+
+## Territory export
+
+Open the independent **Territory** tab. Search by level name, code (such as `f1f1`), ID or resource path, then choose its scene version and festival phase and click **导出 Territory**. **直接导出当前区域…** selects the loaded region and its current branches and opens the export destination dialog. Unloaded regions are read directly from the game's LVB/LGB/SGB and terrain files. The menu only lists festival phases present in that scene version. **无节庆** retains common layers and removes festival decorations.
+
+For the currently loaded Territory, **使用当前游戏分支** captures the active scene filter and complete festival combination. Static instances are matched with runtime layer/instance identifiers; loaded models use captured transforms and material changes, while unloaded geometry uses the static layout. This export ignores the overlay distance and camera culling. Refresh the region state after changing zones. Selecting another scene version disables incompatible runtime overrides; selecting another festival keeps only matching layers.
+
+Export supports the existing glTF/GLB and UE asset output. UE output is geometry assets, not a generated `.umap`. Static export includes terrain, background models, nested shared groups and event-object SGB references; NPCs, VFX, lighting and timeline animation are not reconstructed by this path. Missing resources, unsupported entry types and unmatched runtime children are recorded in `territory-report.json`. Unloaded dynamic objects retain their file defaults.
+
+Territory grouping is independent of character mesh grouping:
+
+| Rule | Group boundary |
+| --- | --- |
+| 全部合并 | The entire selected scene |
+| 按重复资源合并 (default) | Full model path + replacement material path/slot + stain ID; every occurrence is retained |
+| 按场景层分组 | Source layout file + group/layer ID; nested SGB geometry inherits its containing scene layer, terrain has its own group |
+| 逐实例导出 | Each placed model instance; shared groups are expanded and terrain plates are separate |
+
+UE bakes each group into one mesh at its world positions; repeated-resource grouping is not ISM/HISM instancing and does not remove repeated placements or weld vertices. glTF/GLB writes one scene file per group and retains its internal nodes. Terrain plates participate with their individual model paths and positions. `territory-groups.json` records the selected rule, output group names and occurrence counts. Material-only and filename-only grouping are deliberately not used: different model paths, material replacements and stains remain distinguishable in repeated-resource mode.
+
+Developer validation: `dotnet test Meddle/Meddle.Utils.Tests --filter FullyQualifiedName~TerritorySceneTests`. To inspect installed scene data without launching the game, run `dotnet run --project tools/TerritoryProbe -- <game directory> [bg/.../level/scene.lvb]`. Without a scene path, the probe follows all TerritoryType scene references and reports missing files separately from parse failures.
 
 ## Attributions
 Much of this code is from or based on the following projects and wouldn't have been possible without them:

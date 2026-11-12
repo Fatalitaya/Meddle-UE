@@ -4,7 +4,8 @@ public enum WindowOrder
 {
     Character = 0,
     Layout = 1,
-    Animation = 2,
-    Options = 3,
-    About = 4
+    Territory = 2,
+    Animation = 3,
+    Options = 4,
+    About = 5
 }

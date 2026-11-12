@@ -6,7 +6,7 @@ using Meddle.Unreal;
 
 namespace Meddle.Utils.Export.Ue;
 
-public enum CharacterShader { Basic, Equipment, Skin, Hair, Iris, Legacy, Tattoo, Occlusion }
+public enum CharacterShader { Basic, Background, Equipment, Skin, Hair, Iris, Legacy, Tattoo, Occlusion }
 public sealed record MaterialTexture(string Usage, string Package, bool Srgb, bool Nearest = false, bool Clamp = false, int Width = 1, int Height = 1);
 public sealed record MaterialFormulaResult(CharacterShader Shader, MaterialGraph? Graph, string AlphaMode, string? Gap,
     bool Unlit = false, string? Adaptation = null, bool DitherOpacityMask = false);
@@ -18,6 +18,7 @@ public static class CharacterMaterial
     public const string HairReference = "FFXIV SM5 hair.shpk normal/coverage 2026-11-12; tools/ShpkProbe";
     public static CharacterShader Classify(string shader) => shader switch
     {
+        "bg.shpk" or "terrain.shpk" or "bgskin.shpk" or "bgprop.shpk" or "bgcolorchange.shpk" or "bguvscroll.shpk" or "bgcrestchange.shpk" => CharacterShader.Background,
         "character.shpk" => CharacterShader.Equipment,
         "skin.shpk" => CharacterShader.Skin,
         "hair.shpk" => CharacterShader.Hair,
@@ -42,6 +43,8 @@ public static class CharacterMaterial
     public static MaterialFormulaResult Build(JsonObject data, IReadOnlyDictionary<string, MaterialTexture> textures)
     {
         var shader = Classify(data["ShaderPackage"]?.GetValue<string>() ?? "");
+        if (shader == CharacterShader.Background) return BackgroundMaterial.Build(data,textures);
+        if (shader == CharacterShader.Skin) return SkinMaterial.Build(data,textures);
         if (shader is CharacterShader.Legacy or CharacterShader.Tattoo or CharacterShader.Occlusion)
             return ShpkMaterial.Build(shader, data, textures);
         var compatibility = Key(data,"GetValues","GetValuesCompatibility") || Key(data,"GetValuesTextureType","Compatibility");
@@ -50,7 +53,6 @@ public static class CharacterMaterial
         if (shader == CharacterShader.Basic) return Gap("Shader variant has no verified attribute mapping.");
         string[] required = shader == CharacterShader.Hair ? ["g_SamplerNormal", "g_SamplerMask"] :
             shader == CharacterShader.Equipment ? ["g_SamplerNormal", "g_SamplerMask", "g_SamplerIndex", "chara_tile_norm_array", "chara_tile_orb_array"] :
-            shader == CharacterShader.Skin ? ["g_SamplerDiffuse", "g_SamplerNormal", "g_SamplerMask", "chara_tile_norm_array", "chara_tile_orb_array"] :
             ["g_SamplerDiffuse", "g_SamplerNormal", "g_SamplerMask"];
         if (shader == CharacterShader.Equipment && compatibility) required = [..required, "g_SamplerDiffuse"];
         var missing = required.Where(k => !textures.ContainsKey(k)).ToArray();
@@ -104,7 +106,7 @@ public static class CharacterMaterial
             code.AppendLine("float ring=saturate((r<hi && r>=start ? f.map(r,start,lo) : 0) + (r<=end && r>lo ? 1-f.map(r,hi,end) : 0));");
             code.AppendLine($"emission={V(data,"g_IrisRingColor",Vector3.Zero)} * ring * {F(N(data,"g_IrisRingEmissiveIntensity"))} * (vertex.r>vertex.g ? {F(N(data,"LeftIrisColor",0,3))} : {F(N(data,"RightIrisColor",0,3))});");
         }
-        if (shader is CharacterShader.Skin or CharacterShader.Equipment)
+        if (shader == CharacterShader.Equipment)
         {
             var tileCode = new StringBuilder(Helpers);
             var tileInputs = new List<(string Name, MaterialLink Link)> { ("uv", uv) };
@@ -116,20 +118,6 @@ public static class CharacterMaterial
                 code.AppendLine($"baseColor=tableColor{(compatibility ? "*d.rgb" : "")}; metallic=packed.x; roughness=saturate(packed.y*m.g); emission=tableEmission;");
                 code.AppendLine($"opacity=f.alphaDiv(n.b,{threshold});");
             }
-            else
-            {
-                code.AppendLine($"float tileAlpha={F(N(data,"g_TileAlpha",1))};");
-                tileCode.AppendLine($"float tileIndex={F(N(data,"g_TileIndex"))}; float2 tileScale=float2({F(N(data,"g_TileScale",16))},{F(N(data,"g_TileScale",16,1))});");
-                var face = Key(data,"GetMaterialValue","GetMaterialValueFace");
-                var body = Key(data,"GetMaterialValue","GetMaterialValueBodyJJM");
-                var emissive = Key(data,"GetMaterialValue","GetMaterialValueFaceEmissive");
-                code.AppendLine($"float3 skin={V(data,"SkinColor",Vector3.One)}, emissiveColor={V(data,"g_EmissiveColor",Vector3.Zero)};");
-                code.AppendLine($"baseColor=lerp(f.reinhard({V(data,"g_DiffuseColor",Vector3.One)}),skin,saturate(n.b));");
-                if (emissive) code.AppendLine("baseColor=lerp(baseColor,emissiveColor,saturate(f.bw(emissiveColor)*n.a)); emission=emissiveColor*n.a;");
-                if (face) code.AppendLine($"baseColor=lerp(baseColor,{V(data,"LipColor",Vector3.Zero)},saturate({F(N(data,"LipColor",0,3))}*n.a));");
-                if (body) code.AppendLine($"baseColor=lerp(baseColor,lerp(lerp({V(data,"MainColor",Vector3.Zero)},{V(data,"MeshColor",Vector3.Zero)},saturate(m.a)),skin,saturate(n.b)),saturate(n.a));");
-                code.AppendLine($"float a={(body ? "1.0" : "d.a")}; baseColor=lerp(d.rgb,d.rgb*baseColor,saturate(a)); roughness=m.g; opacity=a*(a>{threshold} ? 1.0 : 0.0);");
-            }
             // glTF/UE V runs downward; Blender UVMap runs upward. Convert before and after tile_select.
             tileCode.AppendLine("float2 b=fmod(float2(uv.x,1-uv.y)*tileScale,1.0); return float2(b.x,1-(64-floor(tileIndex)-1+b.y)/64);");
             var tileUv = g.Custom("tile_select / ApplyUVScale", tileCode.ToString(), 2, tileInputs.ToArray());
@@ -139,17 +127,14 @@ public static class CharacterMaterial
             code.AppendLine("normal += f.normalFix(tn)*tn.a*tileAlpha;");
             if (textures.ContainsKey("Decal"))
             {
-                var decalUv = shader == CharacterShader.Skin ? g.Custom("meddle decaluv", $"return float2(uv.x*{F(N(data,"FacePaintUVMultiplier"))}+{F(N(data,"FacePaintUVOffset"))},uv.y);", 2, ("uv",uv1)) : uv1;
+                var decalUv = uv1;
                 Add("decal", "Decal", decalUv); inputs.Add(("decalUv", decalUv));
                 var decalTexture = textures["Decal"];
                 // Blender CLIP is a black-border sampler. Clamp samples multiplied by
                 // bilinear border coverage retain the half-texel transition on both sides.
                 code.AppendLine($"float2 border=saturate(min(decalUv,1-decalUv)*float2({decalTexture.Width},{decalTexture.Height})+0.5); float coverage=border.x*border.y;");
-                code.AppendLine(shader == CharacterShader.Skin
-                    ? $"baseColor=lerp(baseColor,{V(data,"DecalColor",Vector3.Zero)},saturate(f.bw(decal.rgb)*{F(N(data,"DecalColor",0,3))}*coverage));"
-                    : "baseColor=lerp(baseColor,decal.rgb*coverage,saturate(decal.a*coverage));");
+                code.AppendLine("baseColor=lerp(baseColor,decal.rgb*coverage,saturate(decal.a*coverage));");
             }
-            if (shader == CharacterShader.Skin) code.AppendLine("baseColor *= saturate(orb.b);");
         }
         foreach (var (output, expression, dimension) in new[] {
                      ("BaseColor","baseColor",3), ("Normal","normal",3), ("Roughness","roughness",1),

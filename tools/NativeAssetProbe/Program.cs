@@ -84,11 +84,11 @@ var attachmentRoot = new NodeBuilder("root") { LocalTransform = new SharpGLTF.Tr
 groupedScene.AddNode(bodyRoot); groupedScene.AddNode(attachmentRoot);
 for(var i=0;i<4;i++)
 {
-    var source=new MeshBuilder<VertexPositionNormal,VertexTexture1,VertexJoints4>(i==3 ? "æ­¦å™¨" : "åŽŸå§‹æ¨¡åž‹");
+    var source=new MeshBuilder<VertexPositionNormal,VertexTexture1,VertexJoints4>(i==3 ? "ÎäÆ÷" : "Ô­Ê¼Ä£ÐÍ");
     source.Extras=new System.Text.Json.Nodes.JsonObject {
         ["modelPart"]=i<2 ? "Top" : i==2 ? "Face" : "Weapon", ["modelOwner"]=i==3 ? "1" : "0",
-        ["targetNames"]=new System.Text.Json.Nodes.JsonArray("å½¢æ€") };
-    var p=source.UsePrimitive(new MaterialBuilder("æè´¨"+i));
+        ["targetNames"]=new System.Text.Json.Nodes.JsonArray("ÐÎÌ¬") };
+    var p=source.UsePrimitive(new MaterialBuilder("²ÄÖÊ"+i));
     var origin=i==3 ? Vector3.Zero : new Vector3(i*2,0,0);
     p.AddTriangle((new VertexPositionNormal(origin,Vector3.UnitZ),new VertexTexture1(Vector2.Zero),new VertexJoints4(0)),
         (new VertexPositionNormal(origin+Vector3.UnitX,Vector3.UnitZ),new VertexTexture1(Vector2.UnitX),new VertexJoints4(0)),
@@ -98,7 +98,7 @@ for(var i=0;i<4;i++)
 }
 var groupedModel=groupedScene.ToGltf2();
 foreach(var mode in Enum.GetValues<UeMeshMergeMode>())
-    NativeAssetExporter.Export(groupedModel,project,"è§’è‰²"+mode,mergeMode:mode);
+    NativeAssetExporter.Export(groupedModel,project,"½ÇÉ«"+mode,mergeMode:mode);
 groupedScene.AddRigidMesh(rigidMesh,Matrix4x4.CreateTranslation(8,0,0));
 NativeAssetExporter.Export(groupedScene.ToGltf2(),project,"MixedInstances");
 
@@ -148,7 +148,7 @@ if (args.Length == 2)
         }
         var formula = CharacterMaterial.Build(test["metadata"]!.AsObject(),textures);
         var graph = formula.Graph ?? throw new Exception(formula.Gap);
-        if (name.StartsWith("shpk_", StringComparison.Ordinal) || name.StartsWith("hair_shpk_",StringComparison.Ordinal))
+        if (name.StartsWith("bg_shpk_", StringComparison.Ordinal) || name.StartsWith("shpk_", StringComparison.Ordinal) || name.StartsWith("hair_shpk_",StringComparison.Ordinal) || name.StartsWith("skin_shpk_",StringComparison.Ordinal))
             MaterialWriter.Write(FileFor(name+"_Full"),package+name+"_Full",
                 new(Vector4.One,0,1,Graph:graph,AlphaMode:formula.AlphaMode,Unlit:formula.Unlit,DitherOpacityMask:formula.DitherOpacityMask,TwoSided:name.StartsWith("hair_shpk_",StringComparison.Ordinal)));
         // Inject known UVs and vertex color while retaining production texture samples and HLSL.

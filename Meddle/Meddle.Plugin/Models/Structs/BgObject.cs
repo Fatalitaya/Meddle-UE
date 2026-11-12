@@ -10,6 +10,8 @@ public unsafe struct BgObject
     [FieldOffset(0x00)] public FFXIVClientStructs.FFXIV.Client.Graphics.Scene.BgObject Base;
     [FieldOffset(0x90)] public ModelResourceHandle* ModelResourceHandle;
     [FieldOffset(0xA8)] public BgObjectAdditionalData* BGChangeData;
+    // Local client 0x140453B43 -> render instance m_EmissivePower, normalized by 255.
+    [FieldOffset(0xCD)] public byte EmissivePower;
     
     public ModelResourceHandleData GetModelResourceHandleData()
     {
@@ -46,5 +48,6 @@ public unsafe struct BgObject
 [StructLayout(LayoutKind.Explicit, Size = 0x38)]
 public unsafe struct BgObjectAdditionalData
 {
+    [FieldOffset(0x04)] public System.Numerics.Vector4 LinearStainColor;
     [FieldOffset(0x18)] public MaterialResourceHandle* MaterialResourceHandle;
 }

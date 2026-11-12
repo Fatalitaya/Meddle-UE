@@ -410,7 +410,7 @@ public partial class LayoutWindow : ITab
             if (exportUeAssets)
             {
                 ImGui.Combo("模型组合", ref ueMeshMergeMode, "全部合并\0按部位合并\0不合并\0");
-                ImGui.TextWrapped("每个实例分别导出；全部合并时使用实例名，其余使用部位或模型名。保留场景位置。无骨架物件导出为单根骨骼的 Skeletal Mesh。灯光、相机和投影贴花不包含在模型导出中。");
+                ImGui.TextWrapped("每个实例分别导出；全部合并时使用实例名，其余使用部位或模型名。保留场景位置。无蒙皮物件导出为 Static Mesh，带蒙皮实例导出为 Skeletal Mesh；混合组分别合并。灯光、相机和投影贴花不包含在模型导出中。");
                 if (!instances.Any(UeInstanceExportService.HasGeometry))
                     ImGui.TextWrapped("所选实例没有可导出的模型。");
             }

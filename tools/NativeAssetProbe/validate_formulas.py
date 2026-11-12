@@ -31,7 +31,7 @@ if roundtrip_only:
         assert unreal.EditorAssetLibrary.save_loaded_asset(material,False)
 for case in cases:
     if case['name'] in ['shpk_legacy_0_0','shpk_GetValuesCompatibility','shpk_GetDecalColorRGBA',
-                         'shpk_charactertattoo_0_5_True','shpk_characterocclusion_0_5_False','hair_shpk_normal_0','hair_shpk_alpha_64']:
+                         'shpk_charactertattoo_0_5_True','shpk_characterocclusion_0_5_False','hair_shpk_normal_0','hair_shpk_alpha_64','skin_shpk_0','bg_shpk_0','bg_shpk_4','bg_shpk_8','bg_shpk_16','bg_shpk_78']:
         full=unreal.load_asset('/Game/Meddle/Probe/'+case['name']+'_Full')
         assert full
         assert not unreal.MaterialEditingLibrary.recompile_material(full), case['name']

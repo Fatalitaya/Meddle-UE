@@ -74,5 +74,7 @@ for shader in ['skin','character']:
         c['metadata']['g_TileIndex']=[21]
         c['uv0']=[-.2,1.2]
     add(shader,shader+'_tile',tile)
+# Skin now uses the SHPK oracle in tools/ShpkProbe/make_skin_cases.py.
+cases=[c for c in cases if c['metadata']['ShaderPackage']!='skin.shpk']
 Path(__file__).with_name('formula_cases.json').write_text(json.dumps(cases,indent=2),encoding='utf-8')
 print(f'{len(cases)} independent reference cases generated')

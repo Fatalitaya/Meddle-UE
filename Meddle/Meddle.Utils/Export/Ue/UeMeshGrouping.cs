@@ -23,7 +23,9 @@ internal static class UeMeshGrouping
             _ => throw new ArgumentOutOfRangeException(nameof(mode))
         };
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        return groups.Select(g =>
+        // A merge mode controls granularity, never conversion between static and skinned geometry.
+        return groups.SelectMany(g => g.Nodes.GroupBy(n => n.Skin != null)
+            .Select(kind => new UeMeshGroup(g.Name, kind.ToArray()))).Select(g =>
         {
             var name=NativeAssetExporter.SafeName(g.Name); var candidate=name; var suffix=1;
             while(!names.Add(candidate)) candidate=$"{name}_{suffix++}";

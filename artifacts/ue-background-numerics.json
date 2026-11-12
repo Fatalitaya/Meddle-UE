@@ -1,0 +1,30 @@
+{
+  "engine": "UE 5.8.3 D3D12 SM6",
+  "cases": 116,
+  "attributes": 601,
+  "failures": [],
+  "sourceShaders": {
+    "bg.shpk": "9617282FF8A947CEECD11846A73FC1D5EC7782CF19FE22EC363CC6D3195375BE",
+    "terrain.shpk": "9963AE8C63D1668800946B7D372D6CC0159683F832AEEFABFFACF949D12795B8",
+    "bgskin.shpk": "95825ABEE0C9BEE2D45E989CFDCAD3F787BBBCBEB9FCFD724F4E6CC38A5DAE8A",
+    "bgprop.shpk": "C70944A1A30D15C05E7CA63EB759399BF1634CC9CB924043102A76D33FA4B98B",
+    "bgcolorchange.shpk": "8B48A2487CFC29AA42D2AD38E7579520B9CEFAB66D6EFE95D8937961E9EAF667"
+  },
+  "clientSha256": "52042B60631CF2C48851B3AAEE36E9EC4FEDD6D7F2C68F0E9A8C3BEFB0AF9F98",
+  "suites": [
+    {
+      "cases": 111,
+      "attributes": 572,
+      "failures": []
+    },
+    {
+      "cases": 5,
+      "attributes": 29,
+      "failures": []
+    }
+  ],
+  "unitTests": 202,
+  "runtimeCapture": "Compiled; not exercised in a running game.",
+  "scope": "Dry GBuffer attributes; no full-scene lighting or visual equivalence claim.",
+  "oracle": "tools/ShpkProbe/make_background_cases.py"
+}

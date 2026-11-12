@@ -31,8 +31,46 @@ if (args.Length == 3 && args[0] == "--hair-graphs")
     return;
 }
 
-if (args.Length is < 2 or > 3) throw new ArgumentException("Usage: ShpkProbe <game directory> <output directory> [shader name]");
+if (args.Length is < 2 or > 4) throw new ArgumentException("Usage: ShpkProbe <game directory> <output directory> [shader name | --materials <paths.json>]");
 using var pack = new Meddle.SqPack.SqPack(Path.GetFullPath(args[0]));
+if (args.Length==4 && args[2]=="--materials")
+{
+    var results=new JsonArray();
+    foreach(var path in JsonSerializer.Deserialize<string[]>(File.ReadAllText(args[3]))!)
+    {
+        var m=new MtrlFile(Path.IsPathRooted(path) ? File.ReadAllBytes(path) : pack.GetFile(path)!.File.RawData);
+        var shader=m.GetShaderPackageName();
+        var package=new ShaderPackage(new ShpkFile(pack.GetFile("shader/sm5/shpk/"+shader)!.File.RawData),shader);
+        string Name(uint id)=>Names.GetConstants().GetValueOrDefault(id)?.Value ?? $"0x{id:X8}";
+        var metadata=new JsonObject { ["ShaderPackage"]=shader,["IsTransparent"]=(m.ShaderHeader.Flags&16)!=0 };
+        foreach(var (id,value) in package.DefaultKeyValues)metadata[Name(id)]=Name(value);
+        foreach(var key in m.ShaderKeys)metadata[Name(key.Category)]=Name(key.Value);
+        foreach(var (id,values) in package.MaterialConstants)metadata[Name(id)]=JsonSerializer.SerializeToNode(values);
+        foreach(var (id,values) in m.GetConstants())metadata[Name(id)]=JsonSerializer.SerializeToNode(values);
+        results.Add(new JsonObject { ["Path"]=path,["Metadata"]=metadata });
+    }
+    File.WriteAllText(args[1],results.ToJsonString(new JsonSerializerOptions { WriteIndented=true }));
+    return;
+}
+if (args.Length == 3 && args[2] == "--scan-lighting")
+{
+    Directory.CreateDirectory(args[1]);
+    foreach (var category in pack.Repositories.SelectMany(r=>r.Categories.Values).Where(c=>c.Id==5))
+    foreach (var hash in category.UnifiedIndexEntries.Keys)
+    {
+        if (hash <= uint.MaxValue) continue; // Index2 aliases of the same files.
+        if (!category.TryGetFile(hash,out var file)) continue;
+        var raw=file.RawData.ToArray();
+        if (raw.Length<4 || Encoding.ASCII.GetString(raw,0,4)!="ShPk") continue;
+        var strings=Encoding.ASCII.GetString(raw);
+        if (!strings.Contains("GBuffer")) continue;
+        var s=new ShpkFile(raw);
+        var dir=Path.Combine(args[1],hash.ToString("X16"));Directory.CreateDirectory(dir);
+        for(var i=0;i<s.PixelShaders.Length;i++) File.WriteAllText(Path.Combine(dir,$"ps_{i}.asm"),ShaderUtils.Disassemble(s.PixelShaders[i].Blob));
+        Console.WriteLine($"{hash:X16}: {s.PixelShaders.Length} PS");
+    }
+    return;
+}
 foreach (var name in args.Length == 3 ? new[] { args[2] } : new[] { "character", "characterlegacy", "charactertattoo", "characterocclusion", "hair" })
 {
     var path = "shader/sm5/shpk/" + name + ".shpk";
@@ -74,7 +112,11 @@ foreach (var (folder, material) in new[] {
     ("chara/human/c1401/obj/face/f0003", "mt_c1401f0003_etc_b"),
     ("chara/human/c0201/obj/hair/h0156", "mt_c0201h0156_hir_a"),
     ("chara/human/c1401/obj/face/f0003", "mt_c1401f0003_etc_a"),
-    ("chara/human/c1401/obj/face/f0003", "mt_c1401f0003_etc_c") })
+    ("chara/human/c1401/obj/face/f0003", "mt_c1401f0003_etc_c"),
+    ("chara/human/c1401/obj/face/f0003", "mt_c1401f0003_fac_a"),
+    ("chara/human/c1401/obj/face/f0003", "mt_c1401f0003_fac_b"),
+    ("chara/human/c0201/obj/body/b0001", "mt_c0201b0001_a"),
+    ("chara/human/c1401/obj/tail/t0003", "mt_c1401t0003_a") })
 {
     for(var variant=0;variant<=5;variant++)
     {
@@ -101,7 +143,7 @@ foreach (var (folder, material) in new[] {
         Console.WriteLine($"{material} v{variant:0000}: {shaderName}, graph={formula.Graph!=null}, {formula.Gap ?? formula.AlphaMode}");
         string Str(int offset) {var end=Array.IndexOf(m.Strings,(byte)0,offset);return Encoding.UTF8.GetString(m.Strings,offset,end-offset);}
         File.WriteAllText(Path.Combine(args[1],$"{material}_v{variant:0000}.json"),JsonSerializer.Serialize(new {
-            Path=path,m.ShaderHeader, Keys=m.ShaderKeys.Select(k=>new{k.Category,Name=Names.TryResolveName(k.Category),k.Value,ValueName=Names.TryResolveName(k.Value)}),
+            Path=path,Metadata=metadata,m.ShaderHeader, Keys=m.ShaderKeys.Select(k=>new{k.Category,Name=Names.TryResolveName(k.Category),k.Value,ValueName=Names.TryResolveName(k.Value)}),
             Textures=m.Samplers.Select(s=>new{s.SamplerId,Name=Names.TryResolveName(s.SamplerId),
                 Path=s.TextureIndex==byte.MaxValue ? null : Str(m.TextureOffsets[s.TextureIndex].Offset),
                 s.Flags, AddressModeU=s.AddressModeU.ToString(), AddressModeV=s.AddressModeV.ToString(),s.LodBias,s.MinLod,s.UnknownFlags}),

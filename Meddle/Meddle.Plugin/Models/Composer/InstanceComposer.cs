@@ -499,8 +499,9 @@ public class InstanceComposer
         }
     }
     
-    private readonly Dictionary<string, Dictionary<int, MaterialBuilder>> bgPartMaterialCache = new();
-    private readonly Dictionary<nint, IMeshBuilder<MaterialBuilder>[]> meshBuilderCache = new();
+    private readonly record struct BgAppearance(uint? Stain, Vector4? Linear, Vector4? Color, float? EmissivePower);
+    private readonly Dictionary<string, Dictionary<BgAppearance, MaterialBuilder>> bgPartMaterialCache = new();
+    private readonly Dictionary<(nint Model, BgAppearance Appearance), IMeshBuilder<MaterialBuilder>[]> meshBuilderCache = new();
     
     public NodeBuilder? ComposeBgPartsInstance(ParsedBgPartsInstance bgPartsInstance, SceneBuilder scene)
     {
@@ -513,7 +514,10 @@ public class InstanceComposer
         var sceneCache = sceneMeshCache.GetValueOrDefault(scene, []);
         sceneMeshCache[scene] = sceneCache;
         IMeshBuilder<MaterialBuilder>[]? meshes = null;
-        if (bgPartsInstance is {ModelPtr: not null, Stain: null, BgChangeMaterial: null} && meshBuilderCache.TryGetValue(bgPartsInstance.ModelPtr.Value, out meshes))
+        var appearance = new BgAppearance(bgPartsInstance.Stain?.RowId, bgPartsInstance.BgStainLinear,
+            bgPartsInstance.LayoutColor, bgPartsInstance.BgEmissivePower);
+        if (bgPartsInstance is {ModelPtr: not null, BgChangeMaterial: null} &&
+            meshBuilderCache.TryGetValue((bgPartsInstance.ModelPtr.Value, appearance), out meshes))
         {
             Plugin.Logger.LogDebug("Using cached meshes for BgParts instance {InstanceId}", bgPartsInstance.Id);
         }
@@ -542,17 +546,18 @@ public class InstanceComposer
 
                 if (!bgPartMaterialCache.TryGetValue(mtrlPath, out var bgPartMtrlCache))
                 {
-                    bgPartMtrlCache = new Dictionary<int, MaterialBuilder>();
+                    bgPartMtrlCache = new Dictionary<BgAppearance, MaterialBuilder>();
                     bgPartMaterialCache[mtrlPath] = bgPartMtrlCache;
                 }
 
-                if (bgPartMtrlCache.TryGetValue((int?)bgPartsInstance.Stain?.RowId ?? -1, out var cachedBuilder))
+                if (bgPartMtrlCache.TryGetValue(appearance, out var cachedBuilder))
                 {
                     materialBuilders.Add(cachedBuilder);
                 }
                 else
                 {
                     var output = composerCache.ComposeMaterial(mtrlPath, stainInstance: bgPartsInstance);
+                    bgPartMtrlCache[appearance] = output;
                     materialBuilders.Add(output);
                 }
             }
@@ -593,9 +598,9 @@ public class InstanceComposer
             scene.AddNode(root);
         }
         
-        if (bgPartsInstance is {ModelPtr: not null, Stain: null, BgChangeMaterial: null})
+        if (bgPartsInstance is {ModelPtr: not null, BgChangeMaterial: null})
         {
-            meshBuilderCache[bgPartsInstance.ModelPtr.Value] = meshes;
+            meshBuilderCache[(bgPartsInstance.ModelPtr.Value, appearance)] = meshes;
         }
         root.SetLocalTransform(bgPartsInstance.Transform.AffineTransform, false);
         return root;

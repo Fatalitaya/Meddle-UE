@@ -58,6 +58,12 @@ public class MaterialComposer
 
     public void SetPropertiesFromInstance(IStainableInstance instance)
     {
+        if (instance is ParsedBgPartsInstance bg)
+        {
+            if (bg.BgStainLinear is { } linear) SetProperty("BgStainLinear", linear.AsFloatArray());
+            if (bg.LayoutColor is { } color) SetProperty("LayoutColor", color.AsFloatArray());
+            if (bg.BgEmissivePower is { } power) SetProperty("BgEmissivePower", power);
+        }
         if (instance is {Stain: not null} stainInstance && stainInstance.Stain.RowId != 0)
         {
             SetProperty("StainColor", stainInstance.Stain.Color.AsFloatArray());
