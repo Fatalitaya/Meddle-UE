@@ -6,7 +6,7 @@ using Meddle.Unreal;
 
 namespace Meddle.Utils.Export.Ue;
 
-public enum CharacterShader { Basic, Background, Equipment, Skin, Hair, Iris, Legacy, Tattoo, Occlusion }
+public enum CharacterShader { Basic, Background, Equipment, Skin, Hair, Iris, Legacy, Tattoo, Occlusion, Lightshaft }
 public sealed record MaterialTexture(string Usage, string Package, bool Srgb, bool Nearest = false, bool Clamp = false, int Width = 1, int Height = 1);
 public sealed record MaterialFormulaResult(CharacterShader Shader, MaterialGraph? Graph, string AlphaMode, string? Gap,
     bool Unlit = false, string? Adaptation = null, bool DitherOpacityMask = false);
@@ -18,6 +18,7 @@ public static class CharacterMaterial
     public const string HairReference = "FFXIV SM5 hair.shpk normal/coverage 2026-11-12; tools/ShpkProbe";
     public static CharacterShader Classify(string shader) => shader switch
     {
+        "lightshaft.shpk" => CharacterShader.Lightshaft,
         "bg.shpk" or "terrain.shpk" or "bgskin.shpk" or "bgprop.shpk" or "bgcolorchange.shpk" or "bguvscroll.shpk" or "bgcrestchange.shpk" => CharacterShader.Background,
         "character.shpk" => CharacterShader.Equipment,
         "skin.shpk" => CharacterShader.Skin,
@@ -43,6 +44,7 @@ public static class CharacterMaterial
     public static MaterialFormulaResult Build(JsonObject data, IReadOnlyDictionary<string, MaterialTexture> textures)
     {
         var shader = Classify(data["ShaderPackage"]?.GetValue<string>() ?? "");
+        if (shader == CharacterShader.Lightshaft) return LightshaftMaterial.Build(data,textures);
         if (shader == CharacterShader.Background) return BackgroundMaterial.Build(data,textures);
         if (shader == CharacterShader.Skin) return SkinMaterial.Build(data,textures);
         if (shader is CharacterShader.Legacy or CharacterShader.Tattoo or CharacterShader.Occlusion)

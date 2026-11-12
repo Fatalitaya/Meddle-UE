@@ -22,7 +22,8 @@ public static class MaterialWriter
             p.BoolProperty(w, "DitherOpacityMask", material.DitherOpacityMask);
             if (material.Unlit) p.EnumProperty(w, "ShadingModel", "EMaterialShadingModel", "MSM_Unlit");
             p.BoolProperty(w, "bUsedWithSkeletalMesh", true);
-            p.EnumProperty(w, "BlendMode", "EBlendMode", material.AlphaMode switch { "MASK" => "BLEND_Masked", "BLEND" => "BLEND_Translucent", "MODULATE" => "BLEND_Modulate", _ => "BLEND_Opaque" });
+            p.BoolProperty(w, "bUsedWithInstancedStaticMeshes", true);
+            p.EnumProperty(w, "BlendMode", "EBlendMode", material.AlphaMode switch { "MASK" => "BLEND_Masked", "BLEND" => "BLEND_Translucent", "ADDITIVE" => "BLEND_Additive", "MODULATE" => "BLEND_Modulate", _ => "BLEND_Opaque" });
             if (material.AlphaMode == "MODULATE") p.EnumProperty(w, "TranslucencyPass", "EMaterialTranslucencyPass", "MTP_BeforeDOF");
             p.Property(w, "OpacityMaskClipValue", p.Bytes(b => b.Write(material.AlphaCutoff)), ("FloatProperty", 0));
             foreach (var name in new[] { "StateId", "LightingGuid" })
@@ -51,6 +52,9 @@ public static class MaterialWriter
             {
                 MaterialUv => "MaterialExpressionTextureCoordinate",
                 MaterialVertexColor => "MaterialExpressionVertexColor",
+                MaterialWorldPosition => "MaterialExpressionWorldPosition",
+                MaterialVertexNormal => "MaterialExpressionVertexNormalWS",
+                MaterialVertexInterpolator => "MaterialExpressionVertexInterpolator",
                 MaterialSample => "MaterialExpressionTextureSample",
                 MaterialCustom => "MaterialExpressionCustom",
                 _ => throw new NotSupportedException()
@@ -63,6 +67,9 @@ public static class MaterialWriter
                 p.NativeProperty(w, "MaterialExpressionGuid", p.Bytes(b => b.Write(Guid.NewGuid())), ("StructProperty", 1), ("Guid", 1), ("/Script/CoreUObject", 0));
                 switch (node)
                 {
+                    case MaterialVertexInterpolator interpolator:
+                        ExpressionInput(p, w, "Input", interpolator.Input);
+                        break;
                     case MaterialUv uv:
                         p.IntProperty(w, "CoordinateIndex", uv.Channel);
                         break;

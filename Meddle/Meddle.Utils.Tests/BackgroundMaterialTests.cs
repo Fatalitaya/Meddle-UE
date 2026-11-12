@@ -29,6 +29,8 @@ public sealed class BackgroundMaterialTests
         Assert.IsNull(CharacterMaterial.Build(data,textures).Graph);
         data.Remove("0x36F72D5F");data["IsTransparent"]=true;
         Assert.IsNull(CharacterMaterial.Build(data,textures).Graph);
+        data["ApplyAlphaTest"]="ApplyAlphaTestOn";
+        Assert.AreEqual("BLEND",CharacterMaterial.Build(data,textures).AlphaMode);
     }
 
     [TestMethod]

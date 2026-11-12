@@ -141,3 +141,16 @@ bg SHPK SHA256：`9617282FF8A947CEECD11846A73FC1D5EC7782CF19FE22EC363CC6D3195375
 未验证的程序化 detail/noise、bguvscroll、bgcrestchange、透明前向分支明确返回 Gap。双层法线目前共用导出的切线基，独立旋转第二层切线仍有近似；游戏光照、湿润和动画未复现。glTF/GLB 继续保存原始颜色和上述参数，标准查看器不会自动执行这些 SHPK 公式。本次数值测试不是游戏内完整地图截图验收，也未运行游戏内快照采集。
 
 验证结果：UE 5.8.3 / D3D12 / SM6，116 组输入、601 项 GPU 属性读回，0 不一致；包含完整 Default Lit 材质编译、染色 Alpha 0/0.35/1、实例自发光混合和强度、零/负自发光门控、染料表回退与 FFXIVBinormal 转换。202 项单元测试通过，插件 Release 构建 0 警告、0 错误。扩充 SM5 谓词解释后，既有 68 组皮肤 oracle 的 263 项预期数值保持完全相同。
+
+## lightshaft.shpk 光束
+
+SM5 SHPK SHA256：`BEF224EBD302F5101E4E29C9DBA86192DF1A01C7366CF0CBCA7893F6C27DF6D0`。
+`com_lightshaft_0a.mtrl` 的 SqPack 索引哈希为 `D4CB89194767D51C`；Type1，IsTransparent=false，g_Color=(1.2,1.2,1.2)，g_AngleClip=0.025，g_TexU=(0,0,-0.25)，g_TexV=(0,-0.25,0)。可用 `ShpkProbe <game> <out> --material-name com_lightshaft_0a.mtrl` 提取，再用 `--materials` 读取参数。
+
+PS0：`RGB = Sampler0(UV0).rgb * interpolatedColor * Sampler1(projectedUV).rgb`，输出 Alpha 恒为 0。纹理 Alpha 不参与覆盖率。导出为 UE Unlit / Additive，EmissiveColor 接 RGB 乘积，Opacity=1（UE 的 Additive 会再次乘 Opacity）；不能按 IsTransparent=false 导出 Opaque，也不能把 PS 的零 Alpha 直接接 UE Opacity。两张纹理按原始数值采样，关闭硬件 sRGB 转换。
+
+VS0 世界投影为 `dot(rotate * g_TexU, worldPosition)`、`dot(rotate * g_TexV, worldPosition)`，再加 `round_ne(g_TexAnim) * g_Parameter[0].w`。旋转不含缩放。导出将 XIV (x,y,z) 转换成 UE (-z,x,y)，世界位置厘米转米；通过 VertexInterpolator 在顶点阶段调用 UE 的实例变换，避免像素阶段 LocalToWorld 只含组件变换而忽略 ISM 的旋转。角度权重在顶点阶段计算：`vertexAlpha * ((viewForward·normal)^2 * (1-g_AngleClip) + g_AngleClip)`，然后插值。
+
+这是静态 authored-ray 适配，不是完整游戏光束渲染：动画相位固定为零，实例 tint、near-clip fade、游戏曝光系数取 1。Type1 的太阳方向驱动顶点变形、法线旋转、太阳颜色和方向衰减依赖额外运行时常量缓冲，尚未导出。formula.json 保存原始 Metadata 与 Adaptation，避免将这些缺失项隐藏。当前没有把 crystal、water 或 bguvscroll 标记为已还原。
+
+`tools/ShpkProbe/make_lightshaft_cases.py` 直接执行 PS0 反汇编生成 8 组预期值，覆盖 Type0/Type1、纹理 Alpha=0/1、零/非零顶点衰减。`NativeAssetProbe` 编译完整生产图，并用固定 VS 插值量单独验证 PS 输出：UE 5.8.3 / D3D12 / SM6，16 项 GPU 读回无差异。此测试验证像素算术及完整材质编译，不等于 Type1 运行时光照或世界投影的像素级游戏对照。

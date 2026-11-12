@@ -11,7 +11,7 @@ using Meddle.Utils.Export.Ue;
 using System.Text.Json.Nodes;
 using Meddle.Unreal;
 
-if (args.Length == 3 && args[0] == "--hair-graphs")
+if (args.Length == 3 && args[0] is "--hair-graphs" or "--graphs")
 {
     var inputs=JsonNode.Parse(File.ReadAllText(args[1]))!.AsArray();
     var graphs=new JsonArray();
@@ -21,8 +21,8 @@ if (args.Length == 3 && args[0] == "--hair-graphs")
         var formula=CharacterMaterial.Build(input["Metadata"]!.AsObject(),textures);
         var graph=formula.Graph ?? throw new InvalidDataException(formula.Gap);
         graphs.Add(JsonSerializer.SerializeToNode(new {
-            Package=input["Package"]!.GetValue<string>(), Reference=CharacterMaterial.HairReference,
-            formula.AlphaMode,formula.DitherOpacityMask,formula.Adaptation,
+            Package=input["Package"]!.GetValue<string>(), Reference=formula.Shader==CharacterShader.Lightshaft ? LightshaftMaterial.Reference : CharacterMaterial.HairReference,
+            formula.AlphaMode,formula.Unlit,formula.DitherOpacityMask,formula.Adaptation,
             Nodes=graph.Nodes.Select((n,i)=>new { Id=i+3,Kind=n.GetType().Name,Data=JsonSerializer.SerializeToNode(n,n.GetType(),new JsonSerializerOptions { IncludeFields=true }) }),
             graph.Outputs
         }));
@@ -33,6 +33,20 @@ if (args.Length == 3 && args[0] == "--hair-graphs")
 
 if (args.Length is < 2 or > 4) throw new ArgumentException("Usage: ShpkProbe <game directory> <output directory> [shader name | --materials <paths.json>]");
 using var pack = new Meddle.SqPack.SqPack(Path.GetFullPath(args[0]));
+if (args.Length==4 && args[2]=="--material-name")
+{
+    Directory.CreateDirectory(args[1]);
+    var nameHash=Meddle.SqPack.SqPack.GetHash(args[3]);
+    foreach(var category in pack.Repositories.SelectMany(r=>r.Categories.Values))
+    foreach(var hash in category.UnifiedIndexEntries.Keys.Where(h=>h>uint.MaxValue && (uint)h==nameHash))
+        if(category.TryGetFile(hash,out var file))
+        {
+            var output=Path.Combine(args[1],$"{hash:X16}_{args[3]}");
+            File.WriteAllBytes(output,file.RawData.ToArray());
+            Console.WriteLine(output);
+        }
+    return;
+}
 if (args.Length==4 && args[2]=="--materials")
 {
     var results=new JsonArray();

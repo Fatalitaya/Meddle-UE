@@ -148,12 +148,19 @@ if (args.Length == 2)
         }
         var formula = CharacterMaterial.Build(test["metadata"]!.AsObject(),textures);
         var graph = formula.Graph ?? throw new Exception(formula.Gap);
-        if (name.StartsWith("bg_shpk_", StringComparison.Ordinal) || name.StartsWith("shpk_", StringComparison.Ordinal) || name.StartsWith("hair_shpk_",StringComparison.Ordinal) || name.StartsWith("skin_shpk_",StringComparison.Ordinal))
+        if (name.StartsWith("lightshaft_shpk_",StringComparison.Ordinal) || name.StartsWith("bg_shpk_", StringComparison.Ordinal) || name.StartsWith("shpk_", StringComparison.Ordinal) || name.StartsWith("hair_shpk_",StringComparison.Ordinal) || name.StartsWith("skin_shpk_",StringComparison.Ordinal))
             MaterialWriter.Write(FileFor(name+"_Full"),package+name+"_Full",
                 new(Vector4.One,0,1,Graph:graph,AlphaMode:formula.AlphaMode,Unlit:formula.Unlit,DitherOpacityMask:formula.DitherOpacityMask,TwoSided:name.StartsWith("hair_shpk_",StringComparison.Ordinal)));
         // Inject known UVs and vertex color while retaining production texture samples and HLSL.
         for (var i=0;i<graph.Nodes.Count;i++)
         {
+            if (graph.Nodes[i] is MaterialVertexInterpolator interp && test["lightshaftAttenuation"] != null)
+            {
+                var source=(MaterialCustom)graph.Nodes[interp.Input.Expression-3];
+                graph.Nodes[i]=source.Dimensions==2
+                    ? new MaterialCustom("Test projected UV","return float2(0.2,0.3);",2,[])
+                    : new MaterialCustom("Test VS attenuation",FormattableString.Invariant($"return {test["lightshaftAttenuation"]!.GetValue<float>():R};"),1,[]);
+            }
             if (graph.Nodes[i] is MaterialUv uv)
             {
                 var values=test[uv.Channel==0 ? "uv0" : "uv1"]!.AsArray().Select(x=>x!.GetValue<float>()).ToArray();

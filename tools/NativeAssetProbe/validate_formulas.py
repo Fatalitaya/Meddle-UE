@@ -30,11 +30,14 @@ if roundtrip_only:
         assert statistics.num_pixel_shader_instructions>0, (name,statistics)
         assert unreal.EditorAssetLibrary.save_loaded_asset(material,False)
 for case in cases:
-    if case['name'] in ['shpk_legacy_0_0','shpk_GetValuesCompatibility','shpk_GetDecalColorRGBA',
+    if case['name'].startswith('lightshaft_shpk_') or case['name'] in ['shpk_legacy_0_0','shpk_GetValuesCompatibility','shpk_GetDecalColorRGBA',
                          'shpk_charactertattoo_0_5_True','shpk_characterocclusion_0_5_False','hair_shpk_normal_0','hair_shpk_alpha_64','skin_shpk_0','bg_shpk_0','bg_shpk_4','bg_shpk_8','bg_shpk_16','bg_shpk_78']:
         full=unreal.load_asset('/Game/Meddle/Probe/'+case['name']+'_Full')
         assert full
         assert not unreal.MaterialEditingLibrary.recompile_material(full), case['name']
+        if case['name'].startswith('lightshaft_shpk_'):
+            assert full.get_editor_property('blend_mode') == unreal.BlendMode.BLEND_ADDITIVE
+            assert full.get_editor_property('shading_model') == unreal.MaterialShadingModel.MSM_UNLIT
         if case['name'].startswith('hair_shpk_'):
             assert full.get_editor_property('blend_mode') == unreal.BlendMode.BLEND_MASKED
             assert full.get_editor_property('dither_opacity_mask') == case['metadata']['IsTransparent']

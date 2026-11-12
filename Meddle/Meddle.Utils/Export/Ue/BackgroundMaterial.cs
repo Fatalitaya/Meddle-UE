@@ -24,7 +24,7 @@ public static class BackgroundMaterial
         var multi = mode is "GetMultiValues" or "GetAlphaMultiValues" or "0x941820BE";
         var height = mode is "GetAlphaMultiValues" or "0x941820BE";
         var vertex = d["ApplyVertexColor"]?.GetValue<string>() == "ApplyVertexColorOn";
-        var alpha = alphaTest ? "MASK" : "OPAQUE";
+        var alpha = d["IsTransparent"]?.GetValue<bool>() == true ? "BLEND" : alphaTest ? "MASK" : "OPAQUE";
         MaterialFormulaResult Gap(string reason) => new(CharacterShader.Background, null, alpha, reason);
         if (name is not ("bg.shpk" or "terrain.shpk" or "bgskin.shpk" or "bgprop.shpk" or "bgcolorchange.shpk"))
             return Gap("Background shader requires a separate UV/crest formula; raw parameters are retained.");

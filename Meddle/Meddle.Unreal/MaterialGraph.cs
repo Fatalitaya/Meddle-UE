@@ -22,6 +22,9 @@ public readonly record struct MaterialLink(int Expression, int Mask = 0, int Out
 public abstract record MaterialNode;
 public sealed record MaterialUv(int Channel) : MaterialNode;
 public sealed record MaterialVertexColor : MaterialNode;
+public sealed record MaterialWorldPosition : MaterialNode;
+public sealed record MaterialVertexNormal : MaterialNode;
+public sealed record MaterialVertexInterpolator(MaterialLink Input) : MaterialNode;
 public sealed record MaterialSample(string Path, bool Srgb, MaterialLink Uv, bool Normal = false, MaterialLink? MipBias = null) : MaterialNode;
 public sealed record MaterialCustom(string Label, string Code, int Dimensions,
     (string Name, MaterialLink Link)[] Inputs) : MaterialNode;

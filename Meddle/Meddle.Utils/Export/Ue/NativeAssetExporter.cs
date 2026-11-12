@@ -77,7 +77,7 @@ public static class NativeAssetExporter
                         ?? throw new InvalidDataException($"Cannot decode {source}");
                     var texName = $"T_{material.LogicalIndex}_{SafeName(usage)}";
                     var texturePath = PackageFor("Textures", texName);
-                    var srgb = CharacterMaterial.IsColor(usage) && shader is not (CharacterShader.Legacy or CharacterShader.Skin or CharacterShader.Background);
+                    var srgb = CharacterMaterial.IsColor(usage) && shader is not (CharacterShader.Legacy or CharacterShader.Skin or CharacterShader.Background or CharacterShader.Lightshaft);
                     var nearest = usage is "g_SamplerIndex" or "chara_tile_norm_array" or "chara_tile_orb_array";
                     var clamp = usage == "Decal" || (usage == "g_SamplerDiffuse" && shader == CharacterShader.Skin && metadata["GetMaterialValue"]?.GetValue<string>() == "GetMaterialValueFace");
                     TextureWriter.Write(FileFor("Textures", texName), texturePath, bitmap.Width, bitmap.Height, bitmap.Bytes, srgb,
@@ -100,8 +100,8 @@ public static class NativeAssetExporter
             var reportPath = Path.ChangeExtension(FileFor("Materials", matName), ".formula.json");
             System.IO.File.WriteAllText(reportPath, System.Text.Json.JsonSerializer.Serialize(new
             {
-                Reference = shader == CharacterShader.Background ? BackgroundMaterial.Reference : shader is CharacterShader.Legacy or CharacterShader.Tattoo or CharacterShader.Occlusion ? ShpkMaterial.Reference : shader == CharacterShader.Skin ? SkinMaterial.Reference : shader == CharacterShader.Hair ? CharacterMaterial.HairReference : CharacterMaterial.ReferenceCommit,
-                Metadata = shader is CharacterShader.Skin or CharacterShader.Background ? metadata : null,
+                Reference = shader == CharacterShader.Lightshaft ? LightshaftMaterial.Reference : shader == CharacterShader.Background ? BackgroundMaterial.Reference : shader is CharacterShader.Legacy or CharacterShader.Tattoo or CharacterShader.Occlusion ? ShpkMaterial.Reference : shader == CharacterShader.Skin ? SkinMaterial.Reference : shader == CharacterShader.Hair ? CharacterMaterial.HairReference : CharacterMaterial.ReferenceCommit,
+                Metadata = shader is CharacterShader.Skin or CharacterShader.Background or CharacterShader.Lightshaft ? metadata : null,
                 Shader = metadata["ShaderPackage"]?.GetValue<string>(),
                 FormulaEnabled = formula.Graph != null,
                 formula.Gap,
